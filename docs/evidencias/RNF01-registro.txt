@@ -1,0 +1,8 @@
+12:00:19 a. m.  Sesión iniciada: http://localhost:5173/panel-paciente
+12:00:19 a. m.  Minuto 0: GET /api/me/ con el token de la sesión -> 200
+12:04:16 a. m.  Minuto 4 sin interacción: la página sigue en /panel-paciente
+12:05:36 a. m.  Minuto 5:20 sin interacción: la página está en /login
+12:05:36 a. m.  Mensaje mostrado: Tu sesión se cerró tras 5 minutos de inactividad para proteger tu información. Inicia sesión nuevamente.
+12:05:36 a. m.  Minuto 5:20: GET /api/me/ con el token de acceso anterior -> 401 (token_not_valid)
+12:05:36 a. m.  Minuto 5:20: POST /api/token/refresh/ con el token de renovación -> 401 (session_idle: Tu sesión se cerró por inactividad. Inicia sesión nuevamente.)
+12:05:37 a. m.  RESULTADO: CUMPLE RNF01

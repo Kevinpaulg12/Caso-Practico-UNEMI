@@ -1,0 +1,124 @@
+{"specialty": "cirugia", "text": "Tengo mucho dolor y un poco de sangrado", "symptoms": ["Dolor", "Sangrado"]}
+{"specialty": "cirugia", "text": "Me sigue sangrando la herida aunque muerdo la gasa", "symptoms": ["Sangrado"]}
+{"specialty": "cirugia", "text": "La mejilla está muy hinchada y me duele", "symptoms": ["Inflamación", "Dolor"]}
+{"specialty": "cirugia", "text": "Ya no me duele, sin sangrado ni fiebre", "symptoms": []}
+{"specialty": "cirugia", "text": "No puedo abrir la boca bien desde ayer", "symptoms": ["Apertura bucal limitada"]}
+{"specialty": "cirugia", "text": "Siento mal sabor en la boca y tengo fiebre", "symptoms": ["Signos de infección", "Fiebre"]}
+{"specialty": "cirugia", "text": "Tengo el labio adormecido todavía", "symptoms": ["Adormecimiento"]}
+{"specialty": "cirugia", "text": "Me cuesta tragar y tengo la garganta hinchada", "symptoms": ["Dificultad para tragar o respirar", "Inflamación"]}
+{"specialty": "cirugia", "text": "Tengo dificultad para respirar", "symptoms": ["Dificultad para tragar o respirar"]}
+{"specialty": "cirugia", "text": "Estoy con náuseas por el antibiótico", "symptoms": ["Náusea o vómito"]}
+{"specialty": "cirugia", "text": "Hoy amanecí mejor, solo una molestia leve", "symptoms": ["Dolor"]}
+{"specialty": "cirugia", "text": "Sale pus del hueco donde estaba la muela", "symptoms": ["Signos de infección"]}
+{"specialty": "cirugia", "text": "Tengo fiebre de 38 y me duele mucho", "symptoms": ["Fiebre", "Dolor"]}
+{"specialty": "cirugia", "text": "El dolor es insoportable desde el tercer día", "symptoms": ["Dolor"]}
+{"specialty": "cirugia", "text": "Siento hormigueo en la lengua", "symptoms": ["Adormecimiento"]}
+{"specialty": "cirugia", "text": "No tengo fiebre pero la cara sigue inflamada", "symptoms": ["Inflamación"]}
+{"specialty": "cirugia", "text": "Todo bien, sin molestias", "symptoms": []}
+{"specialty": "cirugia", "text": "Me sangra un poco al escupir", "symptoms": ["Sangrado"]}
+{"specialty": "cirugia", "text": "Tengo mal aliento y un sabor feo", "symptoms": ["Signos de infección"]}
+{"specialty": "cirugia", "text": "Me duele el oído del lado de la cirugía", "symptoms": ["Dolor"]}
+{"specialty": "cirugia", "text": "La hinchazón bajó bastante", "symptoms": ["Inflamación"]}
+{"specialty": "cirugia", "text": "Tengo la boca entumecida", "symptoms": ["Adormecimiento"]}
+{"specialty": "cirugia", "text": "Me mareo cuando me levanto", "symptoms": ["Náusea o vómito"]}
+{"specialty": "cirugia", "text": "Sigue saliendo sangre de la encía operada", "symptoms": ["Sangrado"]}
+{"specialty": "cirugia", "text": "No me duele nada hoy", "symptoms": []}
+{"specialty": "endodoncia", "text": "Me duele al morder del lado del diente tratado", "symptoms": ["Dolor al morder"]}
+{"specialty": "endodoncia", "text": "Siento el diente sensible con lo frío", "symptoms": ["Sensibilidad dental"]}
+{"specialty": "endodoncia", "text": "Se me cayó la curación provisional", "symptoms": ["Restauración caída o fractura"]}
+{"specialty": "endodoncia", "text": "La encía alrededor del diente está hinchada", "symptoms": ["Inflamación"]}
+{"specialty": "endodoncia", "text": "Tengo un dolor punzante que me despierta en la noche", "symptoms": ["Dolor"]}
+{"specialty": "endodoncia", "text": "Ya no tengo dolor al masticar", "symptoms": []}
+{"specialty": "endodoncia", "text": "Me salió una bolita con pus en la encía", "symptoms": ["Signos de infección"]}
+{"specialty": "endodoncia", "text": "Siento molestia leve pero va mejorando", "symptoms": ["Dolor"]}
+{"specialty": "endodoncia", "text": "Se me partió el diente que me trataron", "symptoms": ["Restauración caída o fractura"]}
+{"specialty": "endodoncia", "text": "No puedo masticar con ese lado", "symptoms": ["Dolor al morder"]}
+{"specialty": "endodoncia", "text": "Me duele la cara y tengo fiebre", "symptoms": ["Dolor", "Fiebre"]}
+{"specialty": "endodoncia", "text": "Tengo dentera cuando tomo algo helado", "symptoms": ["Sensibilidad dental"]}
+{"specialty": "endodoncia", "text": "El diente se siente flojo", "symptoms": ["Movilidad dental"]}
+{"specialty": "endodoncia", "text": "Sin dolor y sin hinchazón", "symptoms": []}
+{"specialty": "endodoncia", "text": "Me duele mucho al comer", "symptoms": ["Dolor al morder"]}
+{"specialty": "ortodoncia", "text": "Se me despegó un bracket de abajo", "symptoms": ["Aparato suelto o roto"]}
+{"specialty": "ortodoncia", "text": "El alambre me lastima la mejilla", "symptoms": ["Alambre que lastima"]}
+{"specialty": "ortodoncia", "text": "Tengo una llaga por los brackets", "symptoms": ["Llaga o úlcera"]}
+{"specialty": "ortodoncia", "text": "Me duelen los dientes después del ajuste", "symptoms": ["Dolor"]}
+{"specialty": "ortodoncia", "text": "Se me rompió el retenedor", "symptoms": ["Aparato suelto o roto"]}
+{"specialty": "ortodoncia", "text": "Tengo una llaga desde hace 10 días que no se cura", "symptoms": ["Llaga o úlcera"]}
+{"specialty": "ortodoncia", "text": "El arco me pincha atrás", "symptoms": ["Alambre que lastima"]}
+{"specialty": "ortodoncia", "text": "Se me cayó un bracket comiendo", "symptoms": ["Aparato suelto o roto"]}
+{"specialty": "ortodoncia", "text": "Siento los dientes un poco flojos", "symptoms": ["Movilidad dental"]}
+{"specialty": "ortodoncia", "text": "Me salieron aftas en el labio", "symptoms": ["Llaga o úlcera"]}
+{"specialty": "ortodoncia", "text": "Me duele un poco al morder con los alineadores", "symptoms": ["Dolor al morder"]}
+{"specialty": "ortodoncia", "text": "El alineador está roto", "symptoms": ["Aparato suelto o roto"]}
+{"specialty": "ortodoncia", "text": "Todo bien con los brackets", "symptoms": []}
+{"specialty": "ortodoncia", "text": "No tengo llagas esta semana", "symptoms": []}
+{"specialty": "ortodoncia", "text": "El bracket está suelto y el alambre me raspa", "symptoms": ["Aparato suelto o roto", "Alambre que lastima"]}
+{"specialty": "ortodoncia", "text": "Tengo sensibilidad desde el cambio de alineador", "symptoms": ["Sensibilidad dental"]}
+{"specialty": "ortodoncia", "text": "Me sangran las encías al cepillarme con los brackets", "symptoms": ["Sangrado de encías"]}
+{"specialty": "ortodoncia", "text": "Tengo una lastimadura en la lengua", "symptoms": ["Llaga o úlcera"]}
+{"specialty": "ortodoncia", "text": "Se me soltó una liga", "symptoms": ["Aparato suelto o roto"]}
+{"specialty": "ortodoncia", "text": "Molestia normal después del ajuste", "symptoms": ["Dolor"]}
+{"specialty": "periodoncia", "text": "Me sangran las encías cuando me cepillo", "symptoms": ["Sangrado de encías"]}
+{"specialty": "periodoncia", "text": "Tengo las encías sangrantes todavía", "symptoms": ["Sangrado de encías"]}
+{"specialty": "periodoncia", "text": "Siento los dientes sensibles al frío después de la limpieza", "symptoms": ["Sensibilidad dental"]}
+{"specialty": "periodoncia", "text": "Tengo un diente que se mueve", "symptoms": ["Movilidad dental"]}
+{"specialty": "periodoncia", "text": "Veo la encía retraída en los dientes de abajo", "symptoms": ["Retracción de encía"]}
+{"specialty": "periodoncia", "text": "Ya no sangran mis encías", "symptoms": []}
+{"specialty": "periodoncia", "text": "Me duele el paladar donde sacaron el injerto", "symptoms": ["Dolor"]}
+{"specialty": "periodoncia", "text": "La encía está inflamada y roja", "symptoms": ["Inflamación"]}
+{"specialty": "periodoncia", "text": "Tengo mal aliento aunque me cepillo", "symptoms": ["Signos de infección"]}
+{"specialty": "periodoncia", "text": "Sangra mucho la zona operada", "symptoms": ["Sangrado"]}
+{"specialty": "periodoncia", "text": "Tengo sensibilidad al cepillarme", "symptoms": ["Sensibilidad dental"]}
+{"specialty": "periodoncia", "text": "Siento la muela floja", "symptoms": ["Movilidad dental"]}
+{"specialty": "periodoncia", "text": "Sin sangrado de encías hoy", "symptoms": []}
+{"specialty": "periodoncia", "text": "Tengo sangrado al cepillarme y mal sabor", "symptoms": ["Sangrado de encías", "Signos de infección"]}
+{"specialty": "periodoncia", "text": "Las encías se bajaron después del tratamiento", "symptoms": ["Retracción de encía"]}
+{"specialty": "implantologia", "text": "El implante se mueve un poco", "symptoms": ["Movilidad dental"]}
+{"specialty": "implantologia", "text": "Sale pus alrededor del implante", "symptoms": ["Signos de infección"]}
+{"specialty": "implantologia", "text": "Me duele más que ayer la zona del implante", "symptoms": ["Dolor"]}
+{"specialty": "implantologia", "text": "La corona del implante está floja", "symptoms": ["Movilidad dental"]}
+{"specialty": "implantologia", "text": "Tengo la encía hinchada sobre el implante", "symptoms": ["Inflamación"]}
+{"specialty": "implantologia", "text": "Todavía tengo el labio dormido", "symptoms": ["Adormecimiento"]}
+{"specialty": "implantologia", "text": "Se despegó la corona provisional", "symptoms": ["Restauración caída o fractura"]}
+{"specialty": "implantologia", "text": "Me duele al morder con la corona nueva", "symptoms": ["Dolor al morder"]}
+{"specialty": "implantologia", "text": "Sangra un poco donde pusieron el implante", "symptoms": ["Sangrado"]}
+{"specialty": "implantologia", "text": "Ya no tengo inflamación", "symptoms": []}
+{"specialty": "implantologia", "text": "Siento el tornillo flojo", "symptoms": ["Movilidad dental"]}
+{"specialty": "implantologia", "text": "Tengo fiebre desde anoche", "symptoms": ["Fiebre"]}
+{"specialty": "implantologia", "text": "Molestia leve, sin hinchazón", "symptoms": ["Dolor"]}
+{"specialty": "protesis", "text": "La prótesis me queda floja", "symptoms": ["Prótesis desajustada"]}
+{"specialty": "protesis", "text": "La dentadura se me cae al hablar", "symptoms": ["Prótesis desajustada"]}
+{"specialty": "protesis", "text": "Me salió una llaga por la placa", "symptoms": ["Llaga o úlcera"]}
+{"specialty": "protesis", "text": "La prótesis me lastima la encía", "symptoms": ["Prótesis desajustada"]}
+{"specialty": "protesis", "text": "Se me despegó la corona", "symptoms": ["Restauración caída o fractura"]}
+{"specialty": "protesis", "text": "Me duele al morder con el puente nuevo", "symptoms": ["Dolor al morder"]}
+{"specialty": "protesis", "text": "Siento el diente de la corona sensible al frío", "symptoms": ["Sensibilidad dental"]}
+{"specialty": "protesis", "text": "La placa me aprieta", "symptoms": ["Prótesis desajustada"]}
+{"specialty": "protesis", "text": "Ya no me lastima la dentadura", "symptoms": []}
+{"specialty": "protesis", "text": "Tengo una úlcera debajo de la prótesis", "symptoms": ["Llaga o úlcera"]}
+{"specialty": "protesis", "text": "Se me partió la carilla del puente", "symptoms": ["Restauración caída o fractura"]}
+{"specialty": "protesis", "text": "La dentadura me baila cuando como", "symptoms": ["Prótesis desajustada"]}
+{"specialty": "protesis", "text": "Tengo la encía inflamada por la prótesis", "symptoms": ["Inflamación"]}
+{"specialty": "protesis", "text": "Todo bien con la prótesis nueva", "symptoms": []}
+{"specialty": "operatoria", "text": "Siento sensibilidad al frío en la muela de la calza", "symptoms": ["Sensibilidad dental"]}
+{"specialty": "operatoria", "text": "Se me cayó la calza", "symptoms": ["Restauración caída o fractura"]}
+{"specialty": "operatoria", "text": "Me duele al morder, siento la calza alta", "symptoms": ["Dolor al morder"]}
+{"specialty": "operatoria", "text": "Tengo un dolor fuerte que aparece solo", "symptoms": ["Dolor"]}
+{"specialty": "operatoria", "text": "Ya no tengo sensibilidad", "symptoms": []}
+{"specialty": "operatoria", "text": "La resina se partió", "symptoms": ["Restauración caída o fractura"]}
+{"specialty": "operatoria", "text": "Me duele con lo dulce", "symptoms": ["Sensibilidad dental"]}
+{"specialty": "operatoria", "text": "Tengo una molestia que va y viene", "symptoms": ["Dolor"]}
+{"specialty": "estetica", "text": "Tengo mucha sensibilidad después del blanqueamiento", "symptoms": ["Sensibilidad dental"]}
+{"specialty": "estetica", "text": "Se me despegó una carilla", "symptoms": ["Restauración caída o fractura"]}
+{"specialty": "estetica", "text": "Me arde la encía por el gel", "symptoms": ["Dolor"]}
+{"specialty": "estetica", "text": "Siento los dientes sensibles con lo caliente", "symptoms": ["Sensibilidad dental"]}
+{"specialty": "estetica", "text": "Sin sensibilidad hoy", "symptoms": []}
+{"specialty": "estetica", "text": "Se me astilló una carilla", "symptoms": ["Restauración caída o fractura"]}
+{"specialty": "odontopediatria", "text": "El niño tiene la cara hinchada", "symptoms": ["Inflamación"]}
+{"specialty": "odontopediatria", "text": "Mi hijo se mordió el labio por la anestesia y tiene una llaga", "symptoms": ["Llaga o úlcera"]}
+{"specialty": "odontopediatria", "text": "La niña tiene fiebre y le duele la muela", "symptoms": ["Fiebre", "Dolor"]}
+{"specialty": "odontopediatria", "text": "Se le cayó la corona al niño", "symptoms": ["Restauración caída o fractura"]}
+{"specialty": "odontopediatria", "text": "Mi hija come normal y no se queja", "symptoms": []}
+{"specialty": "odontopediatria", "text": "Le sangra un poco la encía", "symptoms": ["Sangrado"]}
+{"specialty": "odontopediatria", "text": "El niño vomitó después del tratamiento", "symptoms": ["Náusea o vómito"]}
+{"specialty": "odontopediatria", "text": "Tiene la encía con pus", "symptoms": ["Signos de infección"]}

@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: mi_proyecto_db
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: mi_base_datos
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin_password}
+    ports:
+      - "5432:5432"
+
+  # Caché compartida (catálogos y límites de uso). Es opcional: sin CACHE_URL el backend usa su memoria.
+  redis:
+    image: redis:7-alpine
+    container_name: mi_proyecto_redis
+    restart: unless-stopped
+    command: redis-server --save "" --maxmemory 64mb --maxmemory-policy allkeys-lru
+
+  backend:
+    build: 
+      context: ./backend
+    container_name: mi_proyecto_backend
+    command: >
+      bash -c "python manage.py migrate && 
+               python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./backend:/app  # Hot-reload: tu código de Windows sobrescribe el del contenedor
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-solo-desarrollo}
+      - DB_NAME=mi_base_datos
+      - DB_USER=admin
+      - DB_PASSWORD=${DB_PASSWORD:-admin_password}
+      - DB_HOST=db
+      - DB_PORT=5432
+      # IA generativa: sin clave el sistema usa sus alternativas locales.
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - AI_MODEL=${AI_MODEL:-gemini-4-hydrogen}
+      - CACHE_URL=${CACHE_URL-redis://redis:6379/1}
+    depends_on:
+      - db
+      - redis
+
+  # Recordatorios por correo (citas, reportes pendientes y cuidados) cada 15 minutos.
+  scheduler:
+    build:
+      context: ./backend
+    container_name: mi_proyecto_scheduler
+    command: >
+      bash -c "while true; do python manage.py send_reminders; sleep 900; done"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-solo-desarrollo}
+      - DB_NAME=mi_base_datos
+      - DB_USER=admin
+      - DB_PASSWORD=${DB_PASSWORD:-admin_password}
+      - DB_HOST=db
+      - DB_PORT=5432
+    depends_on:
+      - backend
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: mi_proyecto_frontend
+    # node_modules vive en un volumen propio: se sincroniza con package.json en cada arranque.
+    command: sh -c "npm install --no-audit --no-fund && npm run dev"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Truco Senior: Evita que el node_modules de Windows aplaste al de Linux
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000/api
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

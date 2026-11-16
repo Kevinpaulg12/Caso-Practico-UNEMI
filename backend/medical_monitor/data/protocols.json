@@ -1,0 +1,2067 @@
+{
+  "_nota": "Protocolos de seguimiento por tratamiento. Las ventanas de expected_symptoms son días desde la última intervención (día 0 = el día de la intervención) durante los que ese síntoma es esperable. Son valores orientativos para la demostración: el equipo clínico debe validarlos y el administrador puede editarlos desde el catálogo.",
+  "general_questions": [
+    "¿Cómo te sientes hoy comparado con ayer?",
+    "Del 0 al 10, ¿cuánto dolor sientes ahora?",
+    "¿Has podido seguir las indicaciones de tu odontólogo?"
+  ],
+  "protocols": [
+    {
+      "code": "COD-MAX-001",
+      "name": "Exodoncia simple",
+      "specialty": "cirugia",
+      "complexity": "low",
+      "monitoring_days": 3,
+      "follow_up_unit": "days",
+      "checkin_every_days": 1,
+      "expected_curve": [
+        5,
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 3,
+        "Inflamación": 3,
+        "Sangrado": 1,
+        "Adormecimiento": 1
+      },
+      "alarm_symptoms": [
+        "Dificultad para tragar o respirar"
+      ],
+      "care_items": [
+        "Morder la gasa 30 minutos tras la extracción",
+        "Frío local 15 minutos cada hora (primer día)",
+        "Dieta blanda y fría",
+        "No escupir ni usar sorbete",
+        "Tomar la medicación indicada"
+      ],
+      "follow_up_questions": {
+        "Sangrado": [
+          "¿El sangrado se detiene al morder una gasa durante 30 minutos?"
+        ],
+        "Dolor": [
+          "¿El dolor ha ido disminuyendo o aumenta cada día?"
+        ],
+        "Inflamación": [
+          "¿La hinchazón está creciendo o se mantiene igual?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Cicatrización inicial",
+          "days": 7,
+          "description": "Formación del coágulo y cierre de la herida."
+        }
+      ],
+      "control_every_days": 7,
+      "medication_default": true,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "anestesia",
+          "label": "Anestesia",
+          "type": "select",
+          "options": [
+            "Infiltrativa",
+            "Troncular",
+            "Sedación consciente",
+            "General"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sutura",
+          "label": "Sutura",
+          "type": "select",
+          "options": [
+            "Sin sutura",
+            "Reabsorbible",
+            "No reabsorbible"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "complicaciones",
+          "label": "Complicaciones durante la intervención",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "estado_herida",
+          "label": "Estado de la herida",
+          "type": "select",
+          "options": [
+            "Cicatrización normal",
+            "Inflamada",
+            "Con signos de infección",
+            "Dehiscencia"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "retiro_puntos",
+          "label": "Se retiraron los puntos",
+          "type": "boolean",
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "COD-MAX-002",
+      "name": "Frenectomía labial con electrobisturí",
+      "specialty": "cirugia",
+      "complexity": "low",
+      "monitoring_days": 3,
+      "follow_up_unit": "days",
+      "checkin_every_days": 1,
+      "expected_curve": [
+        4,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 3,
+        "Inflamación": 3,
+        "Llaga o úlcera": 10
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "Enjuagues suaves con clorhexidina",
+        "Dieta blanda",
+        "Ejercicios de movilidad del labio"
+      ],
+      "follow_up_questions": {
+        "Llaga o úlcera": [
+          "¿La herida del labio se ve blanca o con pus?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Cicatrización",
+          "days": 10,
+          "description": "Cierre de la herida del frenillo."
+        }
+      ],
+      "control_every_days": 7,
+      "medication_default": true,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "anestesia",
+          "label": "Anestesia",
+          "type": "select",
+          "options": [
+            "Infiltrativa",
+            "Troncular",
+            "Sedación consciente",
+            "General"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sutura",
+          "label": "Sutura",
+          "type": "select",
+          "options": [
+            "Sin sutura",
+            "Reabsorbible",
+            "No reabsorbible"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "complicaciones",
+          "label": "Complicaciones durante la intervención",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "estado_herida",
+          "label": "Estado de la herida",
+          "type": "select",
+          "options": [
+            "Cicatrización normal",
+            "Inflamada",
+            "Con signos de infección",
+            "Dehiscencia"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "retiro_puntos",
+          "label": "Se retiraron los puntos",
+          "type": "boolean",
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "COD-MAX-008",
+      "name": "Cirugía de implante dental osteointegrado unitario",
+      "specialty": "implantologia",
+      "complexity": "medium",
+      "monitoring_days": 7,
+      "follow_up_unit": "weeks",
+      "checkin_every_days": 2,
+      "expected_curve": [
+        6,
+        4,
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 4,
+        "Inflamación": 4,
+        "Sangrado": 1,
+        "Adormecimiento": 1
+      },
+      "alarm_symptoms": [
+        "Movilidad dental"
+      ],
+      "care_items": [
+        "Frío local los primeros dos días",
+        "No masticar del lado del implante",
+        "Enjuague con clorhexidina",
+        "Tomar el antibiótico completo"
+      ],
+      "follow_up_questions": {
+        "Movilidad dental": [
+          "¿Sientes que el implante o el tornillo se mueve al tocarlo?"
+        ],
+        "Dolor": [
+          "¿El dolor aumenta después del tercer día?"
+        ],
+        "Signos de infección": [
+          "¿Notas pus o mal sabor alrededor del implante?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Cicatrización quirúrgica",
+          "days": 14,
+          "description": "Cierre de la encía sobre el implante."
+        },
+        {
+          "name": "Osteointegración",
+          "days": 90,
+          "description": "El hueso se une al implante; no se le aplica carga."
+        },
+        {
+          "name": "Rehabilitación protésica",
+          "days": 30,
+          "description": "Toma de impresiones y colocación de la corona."
+        }
+      ],
+      "control_every_days": 14,
+      "medication_default": true,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "implante",
+          "label": "Medidas del implante (diámetro × longitud)",
+          "type": "text",
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "torque",
+          "label": "Torque de inserción (N·cm)",
+          "type": "number",
+          "min": 0,
+          "max": 80,
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "injerto",
+          "label": "Se colocó injerto óseo",
+          "type": "boolean",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "estabilidad",
+          "label": "Estabilidad del implante",
+          "type": "select",
+          "options": [
+            "Estable",
+            "Movilidad leve",
+            "Movilidad evidente"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "encia",
+          "label": "Encía periimplantaria",
+          "type": "select",
+          "options": [
+            "Sana",
+            "Inflamada",
+            "Con supuración"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "COD-MAX-014",
+      "name": "Exodoncia de terceros molares inferiores incluidos",
+      "specialty": "cirugia",
+      "complexity": "high",
+      "monitoring_days": 5,
+      "follow_up_unit": "days",
+      "checkin_every_days": 1,
+      "expected_curve": [
+        7,
+        5,
+        4,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 4,
+        "Inflamación": 3,
+        "Sangrado": 1,
+        "Adormecimiento": 1,
+        "Apertura bucal limitada": 4
+      },
+      "alarm_symptoms": [
+        "Dificultad para tragar o respirar"
+      ],
+      "care_items": [
+        "Frío local 15 minutos cada hora (primeras 48 horas)",
+        "Dieta blanda y fría",
+        "No fumar",
+        "No escupir ni usar sorbete",
+        "Tomar la medicación indicada"
+      ],
+      "follow_up_questions": {
+        "Dolor": [
+          "¿El dolor empeoró después del tercer día? Puede indicar alveolitis."
+        ],
+        "Apertura bucal limitada": [
+          "¿Cuántos dedos puedes meter al abrir la boca?"
+        ],
+        "Inflamación": [
+          "¿La hinchazón llega al cuello o al ojo?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Cicatrización inicial",
+          "days": 10,
+          "description": "Cierre de los alvéolos y retiro de puntos."
+        }
+      ],
+      "control_every_days": 7,
+      "medication_default": true,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "anestesia",
+          "label": "Anestesia",
+          "type": "select",
+          "options": [
+            "Infiltrativa",
+            "Troncular",
+            "Sedación consciente",
+            "General"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sutura",
+          "label": "Sutura",
+          "type": "select",
+          "options": [
+            "Sin sutura",
+            "Reabsorbible",
+            "No reabsorbible"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "complicaciones",
+          "label": "Complicaciones durante la intervención",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "estado_herida",
+          "label": "Estado de la herida",
+          "type": "select",
+          "options": [
+            "Cicatrización normal",
+            "Inflamada",
+            "Con signos de infección",
+            "Dehiscencia"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "retiro_puntos",
+          "label": "Se retiraron los puntos",
+          "type": "boolean",
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "COD-MAX-022",
+      "name": "Regeneración ósea guiada / Injerto en bloque",
+      "specialty": "cirugia",
+      "complexity": "high",
+      "monitoring_days": 7,
+      "follow_up_unit": "weeks",
+      "checkin_every_days": 2,
+      "expected_curve": [
+        7,
+        6,
+        5,
+        3,
+        2,
+        1,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 5,
+        "Inflamación": 5,
+        "Sangrado": 1,
+        "Adormecimiento": 3
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "Frío local los primeros días",
+        "No usar la prótesis sobre la zona",
+        "Enjuague con clorhexidina",
+        "Tomar el antibiótico completo"
+      ],
+      "follow_up_questions": {
+        "Signos de infección": [
+          "¿Ves algún material o hueso expuesto en la encía?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Cicatrización de tejidos blandos",
+          "days": 14,
+          "description": "Cierre de la encía sobre el injerto."
+        },
+        {
+          "name": "Consolidación del injerto",
+          "days": 120,
+          "description": "Integración del injerto al hueso."
+        }
+      ],
+      "control_every_days": 14,
+      "medication_default": true,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "anestesia",
+          "label": "Anestesia",
+          "type": "select",
+          "options": [
+            "Infiltrativa",
+            "Troncular",
+            "Sedación consciente",
+            "General"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sutura",
+          "label": "Sutura",
+          "type": "select",
+          "options": [
+            "Sin sutura",
+            "Reabsorbible",
+            "No reabsorbible"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "complicaciones",
+          "label": "Complicaciones durante la intervención",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "estado_herida",
+          "label": "Estado de la herida",
+          "type": "select",
+          "options": [
+            "Cicatrización normal",
+            "Inflamada",
+            "Con signos de infección",
+            "Dehiscencia"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "retiro_puntos",
+          "label": "Se retiraron los puntos",
+          "type": "boolean",
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "COD-END-001",
+      "name": "Endodoncia (tratamiento de conducto)",
+      "specialty": "endodoncia",
+      "complexity": "low",
+      "monitoring_days": 5,
+      "follow_up_unit": "days",
+      "checkin_every_days": 1,
+      "expected_curve": [
+        4,
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 3,
+        "Dolor al morder": 7,
+        "Sensibilidad dental": 3
+      },
+      "alarm_symptoms": [
+        "Inflamación"
+      ],
+      "care_items": [
+        "No masticar con el diente tratado hasta la restauración final",
+        "Tomar el analgésico solo si hay dolor",
+        "Cepillado suave de la zona"
+      ],
+      "follow_up_questions": {
+        "Dolor": [
+          "¿El dolor aparece solo al morder o también sin tocar el diente?"
+        ],
+        "Inflamación": [
+          "¿La encía o la cara alrededor del diente está hinchada?"
+        ],
+        "Restauración caída o fractura": [
+          "¿Se cayó la curación provisional del diente?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Tratamiento de conductos",
+          "days": 7,
+          "description": "Limpieza y sellado de los conductos."
+        },
+        {
+          "name": "Restauración definitiva",
+          "days": 21,
+          "description": "Reconstrucción o corona del diente tratado."
+        }
+      ],
+      "control_every_days": 7,
+      "medication_default": true,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "diagnostico_pulpar",
+          "label": "Diagnóstico",
+          "type": "select",
+          "options": [
+            "Pulpitis irreversible",
+            "Necrosis pulpar",
+            "Periodontitis apical",
+            "Absceso apical",
+            "Fracaso de endodoncia previa"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "conductos",
+          "label": "Número de conductos",
+          "type": "number",
+          "min": 1,
+          "max": 6,
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "obturacion",
+          "label": "Obturación al terminar la sesión",
+          "type": "select",
+          "options": [
+            "Provisional",
+            "Definitiva"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sintomatologia",
+          "label": "Sintomatología",
+          "type": "select",
+          "options": [
+            "Asintomático",
+            "Dolor a la percusión",
+            "Dolor espontáneo",
+            "Fístula o inflamación"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "restauracion_definitiva",
+          "label": "Se colocó la restauración definitiva",
+          "type": "boolean",
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "END-002",
+      "name": "Retratamiento de conductos",
+      "specialty": "endodoncia",
+      "complexity": "medium",
+      "monitoring_days": 7,
+      "follow_up_unit": "days",
+      "checkin_every_days": 1,
+      "expected_curve": [
+        5,
+        4,
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 4,
+        "Dolor al morder": 10,
+        "Sensibilidad dental": 4
+      },
+      "alarm_symptoms": [
+        "Inflamación"
+      ],
+      "care_items": [
+        "No masticar con el diente tratado",
+        "Tomar la medicación indicada",
+        "Cepillado suave de la zona"
+      ],
+      "follow_up_questions": {
+        "Dolor": [
+          "¿El dolor te despierta por la noche?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Desobturación y medicación",
+          "days": 14,
+          "description": "Retiro del material anterior y medicación intraconducto."
+        },
+        {
+          "name": "Obturación y restauración",
+          "days": 21,
+          "description": "Sellado definitivo y reconstrucción."
+        }
+      ],
+      "control_every_days": 7,
+      "medication_default": true,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "diagnostico_pulpar",
+          "label": "Diagnóstico",
+          "type": "select",
+          "options": [
+            "Pulpitis irreversible",
+            "Necrosis pulpar",
+            "Periodontitis apical",
+            "Absceso apical",
+            "Fracaso de endodoncia previa"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "conductos",
+          "label": "Número de conductos",
+          "type": "number",
+          "min": 1,
+          "max": 6,
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "obturacion",
+          "label": "Obturación al terminar la sesión",
+          "type": "select",
+          "options": [
+            "Provisional",
+            "Definitiva"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sintomatologia",
+          "label": "Sintomatología",
+          "type": "select",
+          "options": [
+            "Asintomático",
+            "Dolor a la percusión",
+            "Dolor espontáneo",
+            "Fístula o inflamación"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "restauracion_definitiva",
+          "label": "Se colocó la restauración definitiva",
+          "type": "boolean",
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ORT-001",
+      "name": "Ortodoncia con brackets",
+      "specialty": "ortodoncia",
+      "complexity": "medium",
+      "monitoring_days": 30,
+      "follow_up_unit": "weeks",
+      "checkin_every_days": 7,
+      "expected_curve": [
+        5,
+        4,
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 4,
+        "Llaga o úlcera": 7,
+        "Sensibilidad dental": 4,
+        "Movilidad dental": 30
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "Cepillado después de cada comida",
+        "Uso de cepillo interdental",
+        "Usar los elásticos indicados",
+        "Evitar alimentos duros o pegajosos"
+      ],
+      "follow_up_questions": {
+        "Aparato suelto o roto": [
+          "¿Qué pieza se despegó o rompió: un bracket, el alambre o una liga?"
+        ],
+        "Alambre que lastima": [
+          "¿Puedes cubrir el alambre con cera de ortodoncia?"
+        ],
+        "Llaga o úlcera": [
+          "¿Hace cuántos días tienes la llaga?"
+        ],
+        "*": [
+          "¿Usaste tus elásticos las horas indicadas?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Alineación y nivelación",
+          "days": 180,
+          "description": "Los dientes se alinean con arcos flexibles."
+        },
+        {
+          "name": "Corrección de la mordida",
+          "days": 240,
+          "description": "Ajustes con elásticos y arcos de mayor calibre."
+        },
+        {
+          "name": "Finalización",
+          "days": 90,
+          "description": "Detalles finales antes de retirar los brackets."
+        },
+        {
+          "name": "Retención",
+          "days": 365,
+          "description": "Uso de retenedores para mantener el resultado."
+        }
+      ],
+      "control_every_days": 28,
+      "medication_default": false,
+      "uses_teeth": false,
+      "consultation_fields": [
+        {
+          "key": "aparato",
+          "label": "Tipo de aparato",
+          "type": "select",
+          "options": [
+            "Brackets metálicos",
+            "Brackets estéticos",
+            "Brackets de autoligado",
+            "Aparato removible"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "arcadas",
+          "label": "Arcadas tratadas",
+          "type": "select",
+          "options": [
+            "Superior",
+            "Inferior",
+            "Ambas"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "arco",
+          "label": "Arco colocado (ej. NiTi 0.016)",
+          "type": "text",
+          "required": false,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "elasticos",
+          "label": "Uso de elásticos",
+          "type": "select",
+          "options": [
+            "No indicados",
+            "Cumple",
+            "Cumple a medias",
+            "No cumple"
+          ],
+          "required": false,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "higiene",
+          "label": "Higiene oral",
+          "type": "select",
+          "options": [
+            "Buena",
+            "Regular",
+            "Deficiente"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "reparacion",
+          "label": "Se reparó un bracket o aparato suelto",
+          "type": "boolean",
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ORT-002",
+      "name": "Ortodoncia con alineadores transparentes",
+      "specialty": "ortodoncia",
+      "complexity": "low",
+      "monitoring_days": 14,
+      "follow_up_unit": "weeks",
+      "checkin_every_days": 7,
+      "expected_curve": [
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 2,
+        "Sensibilidad dental": 3
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "Usar los alineadores 22 horas al día",
+        "Retirarlos para comer",
+        "Cepillarse antes de volver a colocarlos",
+        "Cambiar de alineador en la fecha indicada"
+      ],
+      "follow_up_questions": {
+        "*": [
+          "¿Cuántas horas al día usaste tus alineadores?"
+        ],
+        "Aparato suelto o roto": [
+          "¿El alineador se rompió o ya no ajusta bien?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Alineadores activos",
+          "days": 365,
+          "description": "Cambio de alineador cada una o dos semanas."
+        },
+        {
+          "name": "Retención",
+          "days": 365,
+          "description": "Uso de retenedores nocturnos."
+        }
+      ],
+      "control_every_days": 42,
+      "medication_default": false,
+      "uses_teeth": false,
+      "consultation_fields": [
+        {
+          "key": "arcadas",
+          "label": "Arcadas tratadas",
+          "type": "select",
+          "options": [
+            "Superior",
+            "Inferior",
+            "Ambas"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "total_alineadores",
+          "label": "Número total de alineadores",
+          "type": "number",
+          "min": 1,
+          "max": 99,
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "alineador_actual",
+          "label": "Alineador actual",
+          "type": "number",
+          "min": 1,
+          "max": 99,
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "uso_diario",
+          "label": "Uso diario",
+          "type": "select",
+          "options": [
+            "20 a 22 horas",
+            "15 a 19 horas",
+            "Menos de 15 horas"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "higiene",
+          "label": "Higiene oral",
+          "type": "select",
+          "options": [
+            "Buena",
+            "Regular",
+            "Deficiente"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PER-001",
+      "name": "Raspado y alisado radicular",
+      "specialty": "periodoncia",
+      "complexity": "low",
+      "monitoring_days": 7,
+      "follow_up_unit": "weeks",
+      "checkin_every_days": 2,
+      "expected_curve": [
+        4,
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 3,
+        "Sangrado de encías": 7,
+        "Sensibilidad dental": 21,
+        "Inflamación": 3
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "Cepillado suave dos o tres veces al día",
+        "Uso de hilo dental o cepillo interdental",
+        "Enjuague con clorhexidina",
+        "No fumar"
+      ],
+      "follow_up_questions": {
+        "Sangrado de encías": [
+          "¿Las encías sangran menos que antes del tratamiento?"
+        ],
+        "Sensibilidad dental": [
+          "¿La sensibilidad es al frío, al calor o al cepillarte?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Fase higiénica",
+          "days": 30,
+          "description": "Raspado por cuadrantes y control de placa."
+        },
+        {
+          "name": "Reevaluación",
+          "days": 45,
+          "description": "Medición de bolsas periodontales."
+        },
+        {
+          "name": "Mantenimiento",
+          "days": 180,
+          "description": "Controles periódicos."
+        }
+      ],
+      "control_every_days": 30,
+      "medication_default": false,
+      "uses_teeth": false,
+      "consultation_fields": [
+        {
+          "key": "zona",
+          "label": "Zona tratada",
+          "type": "select",
+          "options": [
+            "Un cuadrante",
+            "Dos cuadrantes",
+            "Boca completa"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sondaje_max",
+          "label": "Profundidad de sondaje máxima (mm)",
+          "type": "number",
+          "min": 1,
+          "max": 15,
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sangrado",
+          "label": "Sangrado al sondaje",
+          "type": "select",
+          "options": [
+            "Ausente",
+            "Localizado",
+            "Generalizado"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "placa",
+          "label": "Control de placa",
+          "type": "select",
+          "options": [
+            "Buena higiene",
+            "Placa moderada",
+            "Placa abundante"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PER-002",
+      "name": "Cirugía periodontal (colgajo o injerto de encía)",
+      "specialty": "periodoncia",
+      "complexity": "high",
+      "monitoring_days": 10,
+      "follow_up_unit": "days",
+      "checkin_every_days": 1,
+      "expected_curve": [
+        6,
+        5,
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 4,
+        "Inflamación": 4,
+        "Sangrado": 1,
+        "Sangrado de encías": 7,
+        "Sensibilidad dental": 21
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "No cepillar la zona operada hasta indicación",
+        "Enjuague con clorhexidina",
+        "Dieta blanda",
+        "Tomar la medicación indicada"
+      ],
+      "follow_up_questions": {
+        "Sangrado": [
+          "¿La zona de donde se tomó el injerto (paladar) sangra?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Cicatrización",
+          "days": 21,
+          "description": "Cierre del colgajo o integración del injerto."
+        }
+      ],
+      "control_every_days": 10,
+      "medication_default": true,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "zona",
+          "label": "Zona tratada",
+          "type": "select",
+          "options": [
+            "Un cuadrante",
+            "Dos cuadrantes",
+            "Boca completa"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sondaje_max",
+          "label": "Profundidad de sondaje máxima (mm)",
+          "type": "number",
+          "min": 1,
+          "max": 15,
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sangrado",
+          "label": "Sangrado al sondaje",
+          "type": "select",
+          "options": [
+            "Ausente",
+            "Localizado",
+            "Generalizado"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "placa",
+          "label": "Control de placa",
+          "type": "select",
+          "options": [
+            "Buena higiene",
+            "Placa moderada",
+            "Placa abundante"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "IMP-002",
+      "name": "Corona sobre implante (carga protésica)",
+      "specialty": "implantologia",
+      "complexity": "low",
+      "monitoring_days": 7,
+      "follow_up_unit": "weeks",
+      "checkin_every_days": 3,
+      "expected_curve": [
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor al morder": 3
+      },
+      "alarm_symptoms": [
+        "Movilidad dental"
+      ],
+      "care_items": [
+        "Cepillado e hilo dental alrededor del implante",
+        "Evitar morder objetos duros"
+      ],
+      "follow_up_questions": {
+        "Movilidad dental": [
+          "¿La corona se siente floja o hace ruido al morder?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Adaptación de la corona",
+          "days": 30,
+          "description": "Control de la mordida y de la encía."
+        }
+      ],
+      "control_every_days": 30,
+      "medication_default": false,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "retencion",
+          "label": "Retención de la corona",
+          "type": "select",
+          "options": [
+            "Atornillada",
+            "Cementada"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "material",
+          "label": "Material",
+          "type": "select",
+          "options": [
+            "Zirconio",
+            "Metal-porcelana",
+            "Disilicato de litio"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "color",
+          "label": "Color (guía de colores)",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "ajuste",
+          "label": "Ajuste de la corona",
+          "type": "select",
+          "options": [
+            "Adecuado",
+            "Requirió ajuste",
+            "Aflojamiento del tornillo"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "encia",
+          "label": "Encía periimplantaria",
+          "type": "select",
+          "options": [
+            "Sana",
+            "Inflamada",
+            "Con supuración"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PRO-001",
+      "name": "Prótesis fija (corona o puente)",
+      "specialty": "protesis",
+      "complexity": "medium",
+      "monitoring_days": 7,
+      "follow_up_unit": "weeks",
+      "checkin_every_days": 3,
+      "expected_curve": [
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Sensibilidad dental": 14,
+        "Dolor al morder": 3
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "Cepillado y limpieza bajo el puente",
+        "Evitar alimentos muy duros o pegajosos (provisional)"
+      ],
+      "follow_up_questions": {
+        "Restauración caída o fractura": [
+          "¿Se despegó la corona provisional o la definitiva?"
+        ],
+        "Dolor al morder": [
+          "¿Sientes que la corona está alta al cerrar la boca?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Preparación y provisional",
+          "days": 14,
+          "description": "Tallado del diente y corona provisional."
+        },
+        {
+          "name": "Cementación definitiva",
+          "days": 14,
+          "description": "Colocación y ajuste de la prótesis definitiva."
+        }
+      ],
+      "control_every_days": 14,
+      "medication_default": false,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "tipo",
+          "label": "Tipo de prótesis",
+          "type": "select",
+          "options": [
+            "Corona",
+            "Puente",
+            "Parcial removible",
+            "Total"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "material",
+          "label": "Material",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "color",
+          "label": "Color (guía de colores)",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "ajuste",
+          "label": "Ajuste de la prótesis",
+          "type": "select",
+          "options": [
+            "Adecuado",
+            "Requirió ajuste",
+            "Desadaptada"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "oclusion",
+          "label": "Oclusión",
+          "type": "select",
+          "options": [
+            "Correcta",
+            "Contacto alto corregido",
+            "Pendiente de ajuste"
+          ],
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PRO-002",
+      "name": "Prótesis removible (parcial o total)",
+      "specialty": "protesis",
+      "complexity": "medium",
+      "monitoring_days": 14,
+      "follow_up_unit": "weeks",
+      "checkin_every_days": 3,
+      "expected_curve": [
+        3,
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Llaga o úlcera": 7,
+        "Dolor": 7
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "Retirar la prótesis por la noche",
+        "Limpiar la prótesis después de cada comida",
+        "Masajear las encías"
+      ],
+      "follow_up_questions": {
+        "Prótesis desajustada": [
+          "¿La prótesis se mueve al hablar o al comer?"
+        ],
+        "Llaga o úlcera": [
+          "¿En qué zona te lastima la prótesis?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Adaptación",
+          "days": 30,
+          "description": "Ajustes de las zonas que lastiman."
+        },
+        {
+          "name": "Uso habitual",
+          "days": 180,
+          "description": "Controles para revisar el ajuste."
+        }
+      ],
+      "control_every_days": 14,
+      "medication_default": false,
+      "uses_teeth": false,
+      "consultation_fields": [
+        {
+          "key": "tipo",
+          "label": "Tipo de prótesis",
+          "type": "select",
+          "options": [
+            "Corona",
+            "Puente",
+            "Parcial removible",
+            "Total"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "material",
+          "label": "Material",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "color",
+          "label": "Color (guía de colores)",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "ajuste",
+          "label": "Ajuste de la prótesis",
+          "type": "select",
+          "options": [
+            "Adecuado",
+            "Requirió ajuste",
+            "Desadaptada"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "oclusion",
+          "label": "Oclusión",
+          "type": "select",
+          "options": [
+            "Correcta",
+            "Contacto alto corregido",
+            "Pendiente de ajuste"
+          ],
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "OPE-001",
+      "name": "Restauración con resina (calza)",
+      "specialty": "operatoria",
+      "complexity": "low",
+      "monitoring_days": 14,
+      "follow_up_unit": "days",
+      "checkin_every_days": 3,
+      "expected_curve": [
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Sensibilidad dental": 14,
+        "Dolor al morder": 2
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "Evitar alimentos muy fríos o calientes los primeros días",
+        "Cepillado con pasta para sensibilidad"
+      ],
+      "follow_up_questions": {
+        "Sensibilidad dental": [
+          "¿La sensibilidad dura unos segundos o se queda doliendo?"
+        ],
+        "Dolor": [
+          "¿El dolor aparece solo, sin comer ni beber nada?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Adaptación de la restauración",
+          "days": 14,
+          "description": "Control de sensibilidad y de la mordida."
+        }
+      ],
+      "control_every_days": 0,
+      "medication_default": false,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "clase",
+          "label": "Clase de la cavidad",
+          "type": "select",
+          "options": [
+            "Clase I",
+            "Clase II",
+            "Clase III",
+            "Clase IV",
+            "Clase V"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "material",
+          "label": "Material",
+          "type": "select",
+          "options": [
+            "Resina compuesta",
+            "Ionómero de vidrio",
+            "Amalgama",
+            "Incrustación"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "color",
+          "label": "Color (guía de colores)",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sensibilidad",
+          "label": "Sensibilidad",
+          "type": "select",
+          "options": [
+            "Ausente",
+            "Al frío",
+            "Al morder",
+            "Espontánea"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "oclusion",
+          "label": "Oclusión",
+          "type": "select",
+          "options": [
+            "Correcta",
+            "Contacto alto corregido",
+            "Pendiente de ajuste"
+          ],
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "EST-001",
+      "name": "Blanqueamiento dental",
+      "specialty": "estetica",
+      "complexity": "low",
+      "monitoring_days": 7,
+      "follow_up_unit": "days",
+      "checkin_every_days": 1,
+      "expected_curve": [
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Sensibilidad dental": 3
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "Evitar café, té, vino y bebidas oscuras 48 horas",
+        "No fumar",
+        "Usar pasta para sensibilidad"
+      ],
+      "follow_up_questions": {
+        "Sensibilidad dental": [
+          "¿La sensibilidad te impide comer o dormir?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Blanqueamiento y estabilización del color",
+          "days": 14,
+          "description": "Sesiones y cuidados para fijar el color."
+        }
+      ],
+      "control_every_days": 7,
+      "medication_default": false,
+      "uses_teeth": false,
+      "consultation_fields": [
+        {
+          "key": "tecnica",
+          "label": "Técnica",
+          "type": "select",
+          "options": [
+            "En consultorio",
+            "Ambulatorio con férulas",
+            "Combinada"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "tono_inicial",
+          "label": "Tono inicial (guía de colores)",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sensibilidad",
+          "label": "Sensibilidad",
+          "type": "select",
+          "options": [
+            "Ausente",
+            "Al frío",
+            "Al morder",
+            "Espontánea"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "tono_actual",
+          "label": "Tono actual (guía de colores)",
+          "type": "text",
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "EST-002",
+      "name": "Carillas de resina o porcelana",
+      "specialty": "estetica",
+      "complexity": "medium",
+      "monitoring_days": 7,
+      "follow_up_unit": "weeks",
+      "checkin_every_days": 3,
+      "expected_curve": [
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Sensibilidad dental": 7
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "No morder objetos duros ni uñas",
+        "Usar la férula nocturna si fue indicada"
+      ],
+      "follow_up_questions": {
+        "Restauración caída o fractura": [
+          "¿Se despegó o astilló alguna carilla?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Preparación y provisionales",
+          "days": 14,
+          "description": "Diseño y carillas provisionales."
+        },
+        {
+          "name": "Cementación",
+          "days": 14,
+          "description": "Colocación y ajuste de las carillas definitivas."
+        }
+      ],
+      "control_every_days": 14,
+      "medication_default": false,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "tipo",
+          "label": "Tipo de carilla",
+          "type": "select",
+          "options": [
+            "Resina",
+            "Porcelana"
+          ],
+          "required": true,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "tono_inicial",
+          "label": "Tono inicial (guía de colores)",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "sensibilidad",
+          "label": "Sensibilidad",
+          "type": "select",
+          "options": [
+            "Ausente",
+            "Al frío",
+            "Al morder",
+            "Espontánea"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        },
+        {
+          "key": "tono_actual",
+          "label": "Tono actual (guía de colores)",
+          "type": "text",
+          "required": false,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PED-001",
+      "name": "Pulpotomía en diente temporal",
+      "specialty": "odontopediatria",
+      "complexity": "low",
+      "monitoring_days": 5,
+      "follow_up_unit": "days",
+      "checkin_every_days": 1,
+      "expected_curve": [
+        3,
+        2,
+        1
+      ],
+      "expected_symptoms": {
+        "Dolor": 2,
+        "Adormecimiento": 0
+      },
+      "alarm_symptoms": [
+        "Inflamación"
+      ],
+      "care_items": [
+        "Vigilar que el niño no muerda el labio mientras dure la anestesia",
+        "Dieta blanda el primer día",
+        "Cepillado con ayuda de un adulto"
+      ],
+      "follow_up_questions": {
+        "Inflamación": [
+          "¿La cara o la encía del niño está hinchada?"
+        ],
+        "*": [
+          "¿El niño pudo comer y dormir con normalidad?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Tratamiento pulpar",
+          "days": 7,
+          "description": "Pulpotomía y restauración provisional."
+        },
+        {
+          "name": "Corona preformada",
+          "days": 14,
+          "description": "Protección definitiva del diente temporal."
+        }
+      ],
+      "control_every_days": 14,
+      "medication_default": true,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "comportamiento",
+          "label": "Comportamiento (escala de Frankl)",
+          "type": "select",
+          "options": [
+            "Definitivamente negativo",
+            "Negativo",
+            "Positivo",
+            "Definitivamente positivo"
+          ],
+          "required": true,
+          "en": [
+            "inicio",
+            "control"
+          ]
+        },
+        {
+          "key": "acompanante",
+          "label": "Acompañante (parentesco)",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "estado",
+          "label": "Estado del tratamiento",
+          "type": "select",
+          "options": [
+            "Sin novedades",
+            "Requiere reintervención"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PED-002",
+      "name": "Sellantes y aplicación de flúor",
+      "specialty": "odontopediatria",
+      "complexity": "low",
+      "monitoring_days": 3,
+      "follow_up_unit": "days",
+      "checkin_every_days": 3,
+      "expected_curve": [
+        1,
+        0
+      ],
+      "expected_symptoms": {
+        "Sensibilidad dental": 1
+      },
+      "alarm_symptoms": [],
+      "care_items": [
+        "No comer ni beber 30 minutos tras el flúor",
+        "Cepillado dos veces al día con pasta con flúor",
+        "Reducir dulces entre comidas"
+      ],
+      "follow_up_questions": {
+        "*": [
+          "¿El niño se cepilla dos veces al día?"
+        ]
+      },
+      "default_phases": [
+        {
+          "name": "Prevención",
+          "days": 180,
+          "description": "Control semestral de sellantes y caries."
+        }
+      ],
+      "control_every_days": 180,
+      "medication_default": false,
+      "uses_teeth": true,
+      "consultation_fields": [
+        {
+          "key": "comportamiento",
+          "label": "Comportamiento (escala de Frankl)",
+          "type": "select",
+          "options": [
+            "Definitivamente negativo",
+            "Negativo",
+            "Positivo",
+            "Definitivamente positivo"
+          ],
+          "required": true,
+          "en": [
+            "inicio",
+            "control"
+          ]
+        },
+        {
+          "key": "acompanante",
+          "label": "Acompañante (parentesco)",
+          "type": "text",
+          "required": false,
+          "en": [
+            "inicio"
+          ]
+        },
+        {
+          "key": "estado",
+          "label": "Estado del tratamiento",
+          "type": "select",
+          "options": [
+            "Sin novedades",
+            "Requiere reintervención"
+          ],
+          "required": true,
+          "en": [
+            "control"
+          ]
+        }
+      ]
+    }
+  ]
+}

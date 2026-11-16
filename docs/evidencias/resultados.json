@@ -1,0 +1,164 @@
+[
+  {
+    "id": "RF01-CA01 / HU01-CA01",
+    "name": "Odontólogo con credenciales válidas llega a su panel",
+    "ok": true,
+    "detail": "http://localhost:5173/panel-doctor"
+  },
+  {
+    "id": "RF01-CA01",
+    "name": "El odontólogo no accede a la interfaz del paciente",
+    "ok": true,
+    "detail": "http://localhost:5173/panel-doctor"
+  },
+  {
+    "id": "RF01-CA01 / HU01-CA02",
+    "name": "Paciente con credenciales válidas llega a su interfaz de reportes",
+    "ok": true,
+    "detail": "http://localhost:5173/panel-paciente"
+  },
+  {
+    "id": "RF01-CA01",
+    "name": "El paciente no accede al panel del odontólogo",
+    "ok": true,
+    "detail": "http://localhost:5173/panel-paciente"
+  },
+  {
+    "id": "RF01-CA02",
+    "name": "Credenciales inválidas: acceso denegado con mensaje",
+    "ok": true,
+    "detail": "Credenciales inválidas. Verifica tu usuario y contraseña."
+  },
+  {
+    "id": "RF03-CA01 / HU03-CA01",
+    "name": "La lista empieza por las alertas rojas",
+    "ok": true,
+    "detail": "María Torres → Rojo · riesgo alto"
+  },
+  {
+    "id": "HU03-CA01",
+    "name": "Indicadores rojo, amarillo y verde visibles",
+    "ok": true,
+    "detail": "Rojo · riesgo alto /  / Amarillo · en observación /  / Verde · estable /  / Verde · estable / "
+  },
+  {
+    "id": "RF03-CA02 / HU03-CA02",
+    "name": "Al elegir un paciente se dibuja su gráfica histórica de EVA",
+    "ok": true,
+    "detail": "5 puntos reportados"
+  },
+  {
+    "id": "RF03-CA02",
+    "name": "Los datos de la gráfica provienen de los autorreportes (tabla equivalente)",
+    "ok": true,
+    "detail": "5 días"
+  },
+  {
+    "id": "RF03-CA02",
+    "name": "Tooltip con día, EVA y nivel",
+    "ok": true,
+    "detail": "Día 3EVA máx. 5 · 1 reporteEsperado: EVA 2"
+  },
+  {
+    "id": "RNF03",
+    "name": "Panel del odontólogo a 320 px: sin desplazamiento horizontal",
+    "ok": true,
+    "detail": "scrollWidth=320, ancho=320"
+  },
+  {
+    "id": "RNF03",
+    "name": "Panel del odontólogo a 320 px: 15 elementos interactivos dentro de la pantalla",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "id": "RF04-CA01 / HU04-CA01",
+    "name": "El formulario permite seleccionar el tipo de cirugía",
+    "ok": true,
+    "detail": "Endodoncia (tratamiento de conducto) | Exodoncia simple | Frenectomía labial con electrobisturí | Cirugía de implante dental osteointegrado unitario | Exodoncia de terceros molares inferiores incluidos | Regeneración ósea guiada / Injerto en bloque"
+  },
+  {
+    "id": "RF04-CA01",
+    "name": "El procedimiento con su fecha se guarda",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "id": "RNF03",
+    "name": "Registro de procedimiento a 320 px: sin desplazamiento horizontal",
+    "ok": true,
+    "detail": "scrollWidth=320, ancho=320"
+  },
+  {
+    "id": "RNF03",
+    "name": "Registro de procedimiento a 320 px: 23 elementos interactivos dentro de la pantalla",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "id": "RF04-CA02 / HU04-CA02",
+    "name": "La línea de tiempo empieza en la fecha de la cirugía",
+    "ok": true,
+    "detail": "Tu recuperaciónEndodoncia (tratamiento de conducto) · cirugía el 4/11/2026Día 1 después de la cirugía · seguimiento de 3"
+  },
+  {
+    "id": "RF04-CA01 / HU05-CA01",
+    "name": "El paciente ve el texto exacto registrado por el odontólogo",
+    "ok": true,
+    "detail": "Evita masticar del lado tratado durante 24 horas. ⏎ Toma el analgésico solo si hay dolor."
+  },
+  {
+    "id": "RF02-CA01 / HU02-CA01",
+    "name": "Se extraen los síntomas del mensaje",
+    "ok": true,
+    "detail": "Sangrado (leve), Inflamación (leve)"
+  },
+  {
+    "id": "RF02-CA02 / HU02-CA02",
+    "name": "Se asigna un nivel de alerta según síntoma y día (día 3)",
+    "ok": true,
+    "detail": "Nivel de alerta: Alerta amarilla"
+  },
+  {
+    "id": "HU02",
+    "name": "Respuesta visible en el chat",
+    "ok": true,
+    "detail": "202 ms en el navegador"
+  },
+  {
+    "id": "RNF03 / HU02-CA03 / HU05-CA02",
+    "name": "Portal del paciente (autorreporte) a 320 px: sin desplazamiento horizontal",
+    "ok": true,
+    "detail": "scrollWidth=320, ancho=320"
+  },
+  {
+    "id": "RNF03 / HU02-CA03 / HU05-CA02",
+    "name": "Portal del paciente (autorreporte) a 320 px: 25 elementos interactivos dentro de la pantalla",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "id": "RNF03",
+    "name": "Inicio de sesión a 320 px: sin desplazamiento horizontal",
+    "ok": true,
+    "detail": "scrollWidth=320, ancho=320"
+  },
+  {
+    "id": "RNF03",
+    "name": "Inicio de sesión a 320 px: 5 elementos interactivos dentro de la pantalla",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "id": "RNF02",
+    "name": "Autorreporte por HTTP responde en máximo 200 ms",
+    "ok": true,
+    "detail": "50 envíos: mediana 45.4 ms, p95 57.9 ms, máximo 59.3 ms"
+  },
+  {
+    "id": "General",
+    "name": "Sin errores de JavaScript en consola",
+    "ok": true,
+    "detail": ""
+  }
+]

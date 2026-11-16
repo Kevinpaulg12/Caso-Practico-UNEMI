@@ -1,0 +1,6 @@
+Peticiones      100
+Mediana         10.0 ms
+Percentil 95    17.8 ms
+Máximo          76.7 ms
+Umbral (RNF02)  200 ms
+CUMPLE: todos los autorreportes respondieron dentro del umbral.
