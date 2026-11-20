@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { setClinicClock } from '../services/consultationRules';
 import { homePath, rememberProfile } from '../services/session';
 
 const AuthContext = createContext(null);
@@ -23,6 +24,7 @@ export function AuthProvider({ children }) {
 
     api.get('/me/')
       .then((response) => {
+        setClinicClock(response.data);
         setUser(response.data);
         if (response.data.role) {
           setRole(response.data.role);
@@ -57,6 +59,7 @@ export function AuthProvider({ children }) {
       localStorage.setItem('has_logged_in', 'true');
 
       const currentUser = await api.get('/me/');
+      setClinicClock(currentUser.data);
       const userRole = currentUser.data.role;
       localStorage.setItem('user_role', userRole);
 

@@ -13,9 +13,53 @@ export const EMPTY_MEDICATION = {
   duration: '',
 };
 
+// Fecha y zona horaria del consultorio, tal como las informa /api/me/ (clinic_today, clinic_timezone).
+// El servidor rechaza fechas posteriores a su fecha local (TIME_ZONE): si el navegador está en otra zona
+// horaria, su fecha puede ir un día adelantada o atrasada respecto a la del consultorio.
+let clinicClock = null;
+
+export function setClinicClock(user) {
+  const timeZone = user?.clinic_timezone;
+  const date = user?.clinic_today;
+  if (!timeZone && !date) {
+    clinicClock = null;
+    return;
+  }
+  clinicClock = { timeZone: timeZone && isValidTimeZone(timeZone) ? timeZone : null, date: date || null, at: Date.now() };
+}
+
+function isValidTimeZone(timeZone) {
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function dateIn(timeZone, now) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(now);
+  const part = (type) => parts.find((item) => item.type === type).value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function localDate(now) {
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+// Hoy (AAAA-MM-DD) en el consultorio: la fecha que usa el servidor para validar que no sea futura.
 export function today() {
   const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  if (clinicClock?.timeZone) return dateIn(clinicClock.timeZone, now);
+  if (clinicClock?.date) {
+    // Sin zona horaria utilizable: la fecha del servidor, avanzada los días transcurridos desde que se recibió.
+    const elapsedDays = Math.floor((now.getTime() - clinicClock.at) / 86400000);
+    const date = new Date(`${clinicClock.date}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + Math.max(0, elapsedDays));
+    return date.toISOString().slice(0, 10);
+  }
+  return localDate(now);
 }
 
 export function formatLongDate(value) {

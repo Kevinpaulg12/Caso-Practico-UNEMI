@@ -1,5 +1,6 @@
 """Consulta según el tratamiento, controles sin agenda, avance de fases, checklist de cuidados y protocolos."""
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
+from unittest import mock
 
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -378,19 +379,36 @@ class ReminderTests(FollowUpFixture):
         self.assertEqual(kinds, {'control', 'report', 'care'})
         self.assertEqual({item['kind'] for item in pending_for_plan(self.plan, now=self.at(11))}, {'control', 'report'})
 
+    def send_reminders_at(self, hour):
+        # Hora fija: a partir de las 18:00 también se envía el recordatorio de cuidados del día.
+        from django.core.management import call_command
+        with mock.patch('django.utils.timezone.now', return_value=self.at(hour)):
+            call_command('send_reminders', stdout=open('/dev/null', 'w'))
+
     def test_send_reminders_once_by_email(self):
         from django.core import mail
-        from django.core.management import call_command
         self.control_in(2)
-        call_command('send_reminders', stdout=open('/dev/null', 'w'))
+        self.send_reminders_at(11)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn('Tu control de ortodoncia con brackets toca el', mail.outbox[0].body)
-        call_command('send_reminders', stdout=open('/dev/null', 'w'))
+        self.send_reminders_at(11)
         self.assertEqual(len(mail.outbox), 1)
         # El día del control se envía un aviso distinto, también una sola vez.
         self.control_in(0)
-        call_command('send_reminders', stdout=open('/dev/null', 'w'))
-        call_command('send_reminders', stdout=open('/dev/null', 'w'))
+        self.send_reminders_at(11)
+        self.send_reminders_at(11)
+        self.assertEqual(len(mail.outbox), 2)
+
+    def test_care_reminder_is_emailed_once_after_18h(self):
+        from django.core import mail
+        from .reminders import CARE_REMINDER_HOUR
+        self.control_in(2)
+        self.send_reminders_at(CARE_REMINDER_HOUR - 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.send_reminders_at(CARE_REMINDER_HOUR + 1)
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertIn('Aún no marcas tus cuidados de hoy', mail.outbox[1].body)
+        self.send_reminders_at(CARE_REMINDER_HOUR + 2)
         self.assertEqual(len(mail.outbox), 2)
 
     def test_patient_sees_reminders_in_the_portal(self):
@@ -400,3 +418,31 @@ class ReminderTests(FollowUpFixture):
         self.assertEqual(reminders[0]['kind'], 'control')
         self.login(self.doctor)
         self.assertEqual(self.client.get('/api/reminders/').status_code, 403)
+
+
+class ClinicDateTests(FollowUpFixture):
+    """PF22: la fecha de la intervención se valida con la fecha del consultorio (TIME_ZONE), no la del navegador."""
+
+    # 2026-11-19 22:01 en Ecuador = 2026-11-20 03:01 UTC.
+    NOW = datetime(2026, 11, 20, 3, 1, tzinfo=dt_timezone.utc)
+
+    def test_me_exposes_the_clinic_date_and_time_zone(self):
+        self.login(self.doctor)
+        with mock.patch('django.utils.timezone.now', return_value=self.NOW):
+            data = self.client.get('/api/me/').data
+        self.assertEqual(data['clinic_today'], '2026-11-19')
+        self.assertEqual(data['clinic_timezone'], 'America/Guayaquil')
+
+    def test_server_rule_uses_the_clinic_date(self):
+        with mock.patch('django.utils.timezone.now', return_value=self.NOW):
+            future = self.consult(surgery_date='2026-11-20')
+            self.assertEqual(future.status_code, 400)
+            self.assertEqual(future.data['surgery_date'], 'La fecha de la intervención no puede estar en el futuro.')
+            today = self.consult(surgery_date='2026-11-19')
+        self.assertEqual(today.status_code, 201, today.data)
+        self.assertEqual(today.data['treatment']['surgery_date'], '2026-11-19')
+
+    def test_tomorrow_is_still_rejected(self):
+        response = self.consult(surgery_date=(timezone.localdate() + timedelta(days=1)).isoformat())
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('surgery_date', response.data)
