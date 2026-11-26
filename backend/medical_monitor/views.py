@@ -46,7 +46,6 @@ from .services import (
     analyze_medical_text,
     evaluate_patient_status,
     evaluate_treatment_plan,
-    notify_primary_doctor,
     parse_medication_strength,
     search_medications,
 )

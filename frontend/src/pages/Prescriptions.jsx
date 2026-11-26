@@ -13,6 +13,7 @@ import ConversationalAssistant from '../components/patient/ConversationalAssista
 import CareChecklist from '../components/patient/CareChecklist';
 import PlainInstructions from '../components/patient/PlainInstructions';
 import RemindersBanner from '../components/patient/RemindersBanner';
+import { hasFeature } from '../services/features';
 import TreatmentProgress from '../components/patient/TreatmentProgress';
 import {
   IconPill,
@@ -350,7 +351,8 @@ export default function Prescriptions() {
   return (
     <PatientLayout {...layout}>
       <div className="space-y-5 text-[#12233d]">
-        {activePlan && <RemindersBanner onAction={goTo} />}
+        {/* Característica opcional (ENABLE_NOTIFICATIONS): sin ella no hay recordatorios. */}
+        {activePlan && hasFeature(user, 'notifications') && <RemindersBanner onAction={goTo} />}
 
         {/* Las secciones inactivas se ocultan sin desmontarse: un mensaje a medio escribir no se pierde. */}
         <div id="seccion-tratamiento" hidden={section !== 'tratamiento'} className={`${section === 'tratamiento' ? 'grid' : 'hidden'} grid-cols-1 gap-6 lg:grid-cols-12`}>

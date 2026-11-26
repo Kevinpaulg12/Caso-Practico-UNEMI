@@ -5,8 +5,10 @@ import { apiRoutes, page, renderAt } from '../test/utils';
 import Prescriptions from './Prescriptions';
 
 vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+const PATIENT = { full_name: 'Carlos Pérez', username: 'carlos', professional_title: 'Paciente' };
+let mockUser = PATIENT;
 vi.mock('../context/AuthContext', () => ({
-  useAuth: () => ({ logout: vi.fn(), user: { full_name: 'Carlos Pérez', username: 'carlos', professional_title: 'Paciente' } }),
+  useAuth: () => ({ logout: vi.fn(), user: mockUser }),
 }));
 
 const activePlan = {
@@ -199,6 +201,17 @@ describe('Mi tratamiento', () => {
     expect(await screen.findByText(/Hoy te toca contarle/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Reportar ahora' }));
     expect(menuLink('Asistente')).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('sin la característica de notificaciones (variante A) no pide ni muestra recordatorios', async () => {
+    mockUser = { ...PATIENT, features: { variant: 'A', notifications: false } };
+    try {
+      await show({ '/reminders/': [{ kind: 'report', key: 'report:5', text: 'Hoy te toca contarle a tu odontólogo cómo te sientes.' }] });
+      expect(screen.queryByText(/Hoy te toca contarle/)).not.toBeInTheDocument();
+      expect(api.get.mock.calls.map(([url]) => url)).not.toContain('/reminders/');
+    } finally {
+      mockUser = PATIENT;
+    }
   });
 
   it('explica las indicaciones en lenguaje sencillo y responde dudas', async () => {

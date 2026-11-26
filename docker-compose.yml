@@ -44,6 +44,8 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - AI_MODEL=${AI_MODEL:-gemini-4-hydrogen}
       - CACHE_URL=${CACHE_URL-redis://redis:6379/1}
+      # Línea de productos: A = básico, B = completo (ver backend/core/config_product.py).
+      - PRODUCT_VARIANT=${PRODUCT_VARIANT:-B}
     depends_on:
       - db
       - redis
@@ -53,8 +55,11 @@ services:
     build:
       context: ./backend
     container_name: mi_proyecto_scheduler
+    # Solo trabaja si la variante incluye notificaciones; en la variante A termina sin hacer nada.
     command: >
-      bash -c "while true; do python manage.py send_reminders; sleep 900; done"
+      bash -c "if python manage.py help send_reminders > /dev/null 2>&1; then
+               while true; do python manage.py send_reminders; sleep 900; done;
+               else echo 'Variante sin notificaciones: el programador no se ejecuta.'; fi"
     volumes:
       - ./backend:/app
     environment:
@@ -65,6 +70,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-admin_password}
       - DB_HOST=db
       - DB_PORT=5432
+      - PRODUCT_VARIANT=${PRODUCT_VARIANT:-B}
     depends_on:
       - backend
 

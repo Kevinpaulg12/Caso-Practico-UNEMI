@@ -6,7 +6,7 @@ const navigation = [
   { path: '/panel-doctor/consulta-medica', label: 'Consulta Médica', icon: IconPill },
   { path: '/panel-doctor', label: 'Pacientes Activos', icon: IconUsers },
   { path: '/panel-doctor/historial', label: 'Historial y Altas', icon: IconClipboard },
-  { path: '/panel-doctor/informes', label: 'Informes', icon: IconChartBar },
+  { path: '/panel-doctor/informes', label: 'Informes', icon: IconChartBar, feature: 'reports' },
 ];
 
 // El historial de un tratamiento cuelga de Pacientes Activos en el menú.

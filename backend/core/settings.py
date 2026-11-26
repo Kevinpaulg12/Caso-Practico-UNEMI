@@ -46,9 +46,21 @@ INSTALLED_APPS = [
     'users',
     'core',
     'medical_monitor',
-    'corsheaders',  
+    'corsheaders',
     'rest_framework',
 ]
+
+# Línea de productos: la variante (A básica, B completa) decide qué características opcionales se
+# instalan. Cada bandera puede sobrescribirse con su propia variable de entorno.
+from .config_product import feature_apps, load_product  # noqa: E402
+
+PRODUCT_VARIANT = env('PRODUCT_VARIANT', default='B').strip().upper()
+PRODUCT = load_product(PRODUCT_VARIANT)
+PRODUCT_NAME = PRODUCT['NAME']
+ENABLE_REPORTS = env.bool('ENABLE_REPORTS', default=PRODUCT['ENABLE_REPORTS'])
+ENABLE_NOTIFICATIONS = env.bool('ENABLE_NOTIFICATIONS', default=PRODUCT['ENABLE_NOTIFICATIONS'])
+ENABLE_AI = env.bool('ENABLE_AI', default=PRODUCT['ENABLE_AI'])
+INSTALLED_APPS += feature_apps({'ENABLE_REPORTS': ENABLE_REPORTS, 'ENABLE_NOTIFICATIONS': ENABLE_NOTIFICATIONS})
 
 MIDDLEWARE = [
     # Mide cada petición (cabecera Server-Timing) y registra las lentas.
@@ -173,7 +185,7 @@ DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='alertas@dentalsense.exam
 # IA generativa (asistente, resúmenes y explicaciones). El triaje no depende de ella: sin clave o con
 # AI_ENABLED=False el sistema usa sus alternativas locales. Proveedor: Google Gemini (google-genai).
 GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
-AI_ENABLED = env.bool('AI_ENABLED', default=bool(GEMINI_API_KEY))
+AI_ENABLED = ENABLE_AI and env.bool('AI_ENABLED', default=bool(GEMINI_API_KEY))
 AI_MODEL = env('AI_MODEL', default='gemini-4-hydrogen')
 AI_TIMEOUT_SECONDS = env.float('AI_TIMEOUT_SECONDS', default=20.0)
 # Opcional: tokens de razonamiento, solo en los modelos que lo admiten (vacío = lo decide el modelo).

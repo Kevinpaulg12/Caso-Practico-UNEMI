@@ -1,14 +1,11 @@
 import http.client
 import json
 import re
-import threading
 import unicodedata
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from django.conf import settings
-from django.core.mail import send_mail
-from django.db import transaction
 
 from . import rules
 from .caching import medication_guides
@@ -235,31 +232,6 @@ def evaluate_patient_status(pain_level, comparison, message, previous_report=Non
         'evolution_status': evolution_status,
         'doctor_notified': risk_level == 'Alto',
     }
-
-
-def notify_primary_doctor(patient, report):
-    """Avisa por correo al médico asignado; el panel muestra la alerta aunque no tenga correo."""
-    profile = getattr(patient, 'profile', None)
-    doctor = profile.primary_doctor if profile else None
-    if not doctor or not doctor.email:
-        return False
-
-    def send():
-        send_mail(
-            'DentalSense: alerta roja',
-            f'{patient.get_full_name() or patient.username} registró EVA {report.pain_level}. '
-            'Revisa su ficha en el panel clínico.',
-            settings.DEFAULT_FROM_EMAIL,
-            [doctor.email],
-            fail_silently=True,
-        )
-
-    # El correo sale después de responder al paciente: un servidor SMTP lento no debe frenar el reporte.
-    if settings.EMAIL_IN_BACKGROUND:
-        transaction.on_commit(lambda: threading.Thread(target=send, daemon=True).start())
-    else:
-        transaction.on_commit(send)
-    return True
 
 
 def evaluate_treatment_plan(title, procedure, instructions, side_effects):

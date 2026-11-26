@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import AccountMenu from './AccountMenu';
 import { IconTooth } from './Icons';
+import { hasFeature, productLabel } from '../services/features';
 
 const ACCENTS = {
   blue: { logo: 'bg-blue-600 hover:bg-blue-700', badge: 'bg-blue-100 text-blue-700', active: 'bg-blue-600 text-white shadow-sm shadow-blue-500/20' },
@@ -12,7 +13,8 @@ const ACCENTS = {
  * Estructura común de los tres portales (paciente, odontólogo y administrador):
  * cabecera con la cuenta, menú lateral en escritorio y selector de módulo en móvil.
  *
- * navigation: [{ path, label, icon, badge? }]; `current` es el path de la sección abierta.
+ * navigation: [{ path, label, icon, badge?, feature? }]; `current` es el path de la sección abierta.
+ * Una opción con `feature` solo aparece si la variante del producto incluye esa característica.
  */
 export default function PanelLayout({
   home, badge, tagline, area, menuLabel, accent = 'blue',
@@ -24,6 +26,8 @@ export default function PanelLayout({
   const { user } = useAuth() ?? {};
   const colors = ACCENTS[accent];
   const displayName = user?.full_name || user?.username || fallbackName;
+  const items = navigation.filter((item) => !item.feature || hasFeature(user, item.feature));
+  const product = productLabel(user);
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800">
@@ -52,6 +56,11 @@ export default function PanelLayout({
           )}
 
           <div className="flex items-center gap-2">
+            {product && (
+              <span title="Variante de la línea de productos" className="hidden rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600 md:inline">
+                {product}
+              </span>
+            )}
             {headerExtra}
             <AccountMenu user={user || { username: fallbackName, professional_title: fallbackTitle }} />
           </div>
@@ -63,7 +72,7 @@ export default function PanelLayout({
           <nav aria-label={menuLabel}>
             <h2 className="mb-3 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">{menuLabel}</h2>
             <ul className="space-y-1">
-              {navigation.map(({ path, label, icon: Icon, badge: count }) => {
+              {items.map(({ path, label, icon: Icon, badge: count }) => {
                 const isActive = current === path;
                 return (
                   <li key={path}>
@@ -101,8 +110,8 @@ export default function PanelLayout({
               onChange={(event) => navigate(event.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 shadow-sm outline-none focus:border-blue-500"
             >
-              {!navigation.some((item) => item.path === current) && <option value="" disabled>Ir a…</option>}
-              {navigation.map((item) => (
+              {!items.some((item) => item.path === current) && <option value="" disabled>Ir a…</option>}
+              {items.map((item) => (
                 <option key={item.path} value={item.path}>{item.label}</option>
               ))}
             </select>

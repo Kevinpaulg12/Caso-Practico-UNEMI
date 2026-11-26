@@ -21,7 +21,6 @@ from .ai.client import ai_enabled
 from .audit import record_audit
 from .models import AIInteraction, CareCheckin, TreatmentPlan
 from .nlp import CARE, SYMPTOMS
-from .reminders import pending_for_plan
 from .reports import NO_ACTIVE_PLAN, active_plan
 from .serializers_followup import CareCheckinSerializer
 from .serializers_reports import PatientReportSerializer
@@ -97,16 +96,6 @@ def adherence(plan, days):
     if not checkins:
         return None
     return round(sum(item.adherence for item in checkins) / len(checkins))
-
-
-class RemindersView(APIView):
-    """Recordatorios vigentes del paciente, mostrados en su portal."""
-
-    def get(self, request):
-        if request.user.role != User.Roles.PATIENT:
-            raise PermissionDenied('Los recordatorios son del paciente.')
-        plan = active_plan(request.user)
-        return Response(pending_for_plan(plan) if plan else [])
 
 
 class AssistantView(APIView):

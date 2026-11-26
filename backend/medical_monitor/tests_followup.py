@@ -340,7 +340,7 @@ class ReminderTests(FollowUpFixture):
         self.plan.save(update_fields=['next_control_date'])
 
     def control_reminder(self):
-        from .reminders import pending_for_plan
+        from notifications.reminders import pending_for_plan
         return next((item for item in pending_for_plan(self.plan, now=self.at(11)) if item['kind'] == 'control'), None)
 
     def test_control_reminder_stages(self):
@@ -367,7 +367,7 @@ class ReminderTests(FollowUpFixture):
         self.assertIn(f'{due.day} de {months[due.month - 1]}', self.control_reminder()['text'])
 
     def test_pending_reminders(self):
-        from .reminders import pending_for_plan
+        from notifications.reminders import pending_for_plan
         # Ortodoncia: se espera un reporte por semana; el último fue hace 8 días.
         TreatmentPlan.objects.filter(pk=self.plan.pk).update(
             start_date=self.today - timedelta(days=8), last_intervention_date=self.today - timedelta(days=8),

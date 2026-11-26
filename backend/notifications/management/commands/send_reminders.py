@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from medical_monitor.reminders import send_pending
+from notifications.reminders import send_pending
 
 
 class Command(BaseCommand):

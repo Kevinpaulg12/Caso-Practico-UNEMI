@@ -10,7 +10,7 @@ from django.core.mail import send_mail
 from django.utils import timezone
 from django.utils.formats import date_format
 
-from .models import Reminder, TreatmentPlan
+from medical_monitor.models import Reminder, TreatmentPlan
 
 CARE_REMINDER_HOUR = 18
 # Días de antelación con que se avisa de un control.

@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Navigate, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import RoleRoute from './components/RoleRoute';
+import FeatureRoute from './components/FeatureRoute';
 import Loading, { SkeletonCard } from './components/Skeleton';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -76,7 +77,8 @@ export default function App() {
             {/* La agenda se retiró: los controles se registran desde la consulta y el historial. */}
             <Route path="/panel-doctor/agenda" element={<Navigate to="/panel-doctor" replace />} />
             <Route path="/panel-doctor/historial" element={doctor(<Discharges />)} />
-            <Route path="/panel-doctor/informes" element={doctor(<Reports />)} />
+            {/* Característica opcional de la línea de productos (ENABLE_REPORTS). */}
+            <Route path="/panel-doctor/informes" element={doctor(<FeatureRoute feature="reports" fallback="/panel-doctor"><Reports /></FeatureRoute>)} />
 
             {/* Administrador */}
             <Route path="/panel-admin" element={admin(<AdminUsers />)} />

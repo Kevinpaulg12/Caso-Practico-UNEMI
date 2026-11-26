@@ -7,7 +7,8 @@ from rest_framework.exceptions import ValidationError
 
 from .audit import record_audit
 from .models import ClinicalEvolutionSummary, PatientReport, TreatmentPlan
-from .services import evaluate_patient_status, notify_primary_doctor
+from .services import evaluate_patient_status
+from .signals import high_risk_report
 
 NO_ACTIVE_PLAN = 'Aún no tienes un tratamiento activo. Tu odontólogo debe registrarlo para iniciar el seguimiento.'
 
@@ -67,7 +68,8 @@ def save_patient_report(serializer, patient, plan=None):
         ClinicalEvolutionSummary.objects.create(patient=patient, **summary_values)
     record_audit(patient, f'Envió autorreporte (EVA {report.pain_level})', 'Portal Paciente')
     if evaluation['doctor_notified']:
-        notify_primary_doctor(patient, report)
+        # Las características opcionales (p. ej., notificaciones por correo) escuchan esta señal.
+        high_risk_report.send(sender=PatientReport, patient=patient, report=report)
         record_audit(patient, f'Generó alerta de riesgo alto (EVA {report.pain_level})', 'Triaje')
         # El odontólogo recibe además un resumen de la evolución, preparado fuera de la respuesta.
         from .ai.summaries import refresh_summary_after_alert

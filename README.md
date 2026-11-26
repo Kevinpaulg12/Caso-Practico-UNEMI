@@ -27,6 +27,23 @@ npm run dev
 
 `python manage.py seed_demo` crea datos de demostración **borrando los existentes**; solo se ejecuta con `DEBUG=True` o con `--force`.
 
+## Variantes del producto
+
+DentalSense es una línea de productos con dos variantes, definidas en `backend/core/config_product.py`:
+
+| Variante | Informes (`clinical_reports`) | Notificaciones (`notifications`) | IA generativa |
+|---|---|---|---|
+| A · DentalSense Básico | No | No | No |
+| B · DentalSense Completo | Sí | Sí | Sí (con `GEMINI_API_KEY`) |
+
+Se elige con `PRODUCT_VARIANT` (por defecto `B`):
+
+```
+PRODUCT_VARIANT=A docker compose up --build
+```
+
+Cada característica puede activarse o desactivarse por separado con `ENABLE_REPORTS`, `ENABLE_NOTIFICATIONS` o `ENABLE_AI`. El manual completo está en `docs/linea-de-productos.md`.
+
 ## Pruebas
 
 ```

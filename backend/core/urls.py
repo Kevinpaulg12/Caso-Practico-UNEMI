@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -16,7 +17,6 @@ from medical_monitor.views_clinical import (
     DischargeListView,
     MedicationGuideViewSet,
     PatientDischargeView,
-    ReportsSummaryView,
 )
 from medical_monitor.views_followup import (
     AIMetricsView,
@@ -25,7 +25,6 @@ from medical_monitor.views_followup import (
     AssistantStreamView,
     AssistantView,
     CareCheckinView,
-    RemindersView,
     VocabularyView,
 )
 from users.views import CurrentUserViewSet, PatientCreateView, UserProfileViewSet
@@ -64,11 +63,9 @@ urlpatterns = [
     path('api/consultations/', ConsultationCreateView.as_view(), name='consultation-create'),
     path('api/session/ping/', SessionPingView.as_view(), name='session-ping'),
     path('api/alert-settings/', AlertSettingsView.as_view(), name='alert-settings'),
-    path('api/reports/summary/', ReportsSummaryView.as_view(), name='reports-summary'),
     path('api/discharges/', DischargeListView.as_view(), name='discharges'),
     path('api/patients/<int:patient_id>/discharge/', PatientDischargeView.as_view(), name='patient-discharge'),
     path('api/care-checkins/', CareCheckinView.as_view(), name='care-checkins'),
-    path('api/reminders/', RemindersView.as_view(), name='reminders'),
     path('api/assistant/messages/', AssistantView.as_view(), name='assistant-messages'),
     path('api/assistant/messages/stream/', AssistantStreamView.as_view(), name='assistant-messages-stream'),
     path('api/assistant/submit/', AssistantSubmitView.as_view(), name='assistant-submit'),
@@ -77,3 +74,10 @@ urlpatterns = [
     path('api/ai/metrics/', AIMetricsView.as_view(), name='ai-metrics'),
     path('api/', include(router.urls)), # Todas las rutas de la API tendrán el prefijo /api/
 ]
+
+# Características opcionales de la línea de productos: sus rutas existen solo si la variante las activa.
+# Con la característica apagada, la ruta responde 404, como si nunca hubiera existido.
+if settings.ENABLE_REPORTS:
+    urlpatterns.append(path('api/', include('clinical_reports.urls')))
+if settings.ENABLE_NOTIFICATIONS:
+    urlpatterns.append(path('api/', include('notifications.urls')))
