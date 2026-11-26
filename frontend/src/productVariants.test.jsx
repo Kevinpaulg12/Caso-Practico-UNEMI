@@ -13,6 +13,8 @@ const doctorIn = (features) => {
   const responses = {
     '/me/': { role: 'DOC', username: 'laura', full_name: 'Laura Mendoza', features },
     '/discharges/': [],
+    // Tras volver al panel se monta el Monitor Clínico, que recibe la lista de pacientes.
+    '/patients/': [],
     '/reports/summary/': {
       days: 30, patients_monitored: 0, reports_total: 0, alerts_medium: 0, alerts_high: 0,
       average_followup_days: null, risk_distribution: { Bajo: 0, Medio: 0, Alto: 0 },
