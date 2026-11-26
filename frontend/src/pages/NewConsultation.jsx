@@ -6,6 +6,8 @@ import ConsultationForm from '../components/consultation/ConsultationForm';
 import ControlForm from '../components/consultation/ControlForm';
 import { formatLongDate } from '../services/consultationRules';
 import api from '../services/api';
+import { IconHistory, IconMail, IconSave, IconSearch, IconUserPlus, IconUsers, IconX } from '../components/Icons';
+import IconButton from '../components/IconButton';
 
 const initialForm = {
   first_name: '',
@@ -41,7 +43,7 @@ function validateNewPatient(form) {
   }
   if (!/^[+0-9\s-]{7,30}$/.test(form.phone.trim())) errors.phone = 'Escribe un teléfono válido.';
   if (!/^[+0-9\s-]{7,30}$/.test(form.emergency_contact.trim())) errors.emergency_contact = 'Escribe un contacto de emergencia válido.';
-  if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = 'Escribe un correo válido o déjalo vacío.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = 'Escribe el correo del paciente: allí recibirá sus credenciales.';
   return errors;
 }
 
@@ -209,10 +211,8 @@ export default function NewConsultation() {
         national_id: newPatient.national_id,
         has_active_treatment: false,
       });
-      setCredentials({
-        username: data.username,
-        temporary_password: data.temporary_password,
-      });
+      // Las credenciales no se muestran: se envían al correo del paciente.
+      setCredentials({ ...data.credentials, username: data.username });
       setStatus('Ficha creada correctamente. Ya puedes registrar la indicación.');
     } catch (error) {
       const detail = error.response?.data;
@@ -237,8 +237,8 @@ export default function NewConsultation() {
             <p className="mt-1 text-xs text-slate-600">Si ya tiene una ficha, reutilizaremos sus datos. Si no existe, podrás crearla sin duplicados.</p>
           </div>
           {!showNewPatientForm && (
-            <button type="button" onClick={openRegistration} className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50">
-              + Registrar paciente nuevo
+            <button type="button" onClick={openRegistration} className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50">
+              <IconUserPlus className="h-3.5 w-3.5 shrink-0" />Registrar paciente nuevo
             </button>
           )}
         </div>
@@ -257,8 +257,8 @@ export default function NewConsultation() {
             />
             {searchError && <span role="alert" className="mt-1 block text-[11px] font-normal text-rose-600">{searchError}</span>}
           </label>
-          <button type="submit" disabled={searching || !typed} className="self-end rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold text-white disabled:opacity-50">
-            {searching ? 'Buscando...' : 'Buscar ficha'}
+          <button type="submit" disabled={searching || !typed} className="inline-flex items-center gap-1.5 self-end rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold text-white disabled:opacity-50">
+            <IconSearch className="h-3.5 w-3.5 shrink-0" />{searching ? 'Buscando...' : 'Buscar ficha'}
           </button>
         </form>
         <p id="patient-search-help" className="mt-2 text-[11px] text-slate-500">
@@ -298,8 +298,8 @@ export default function NewConsultation() {
               <h2 className="mt-1 text-lg font-black text-slate-900">Registrar paciente en esta consulta</h2>
               <p className="mt-1 text-xs text-slate-500">Solicita solo la información necesaria. La edad se calcula desde la fecha de nacimiento y no se guarda.</p>
             </div>
-            <button type="button" onClick={resetPatient} className="rounded-xl px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100">
-              Cancelar
+            <button type="button" onClick={resetPatient} className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100">
+              <IconX className="h-3.5 w-3.5 shrink-0" />Cancelar
             </button>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -310,18 +310,19 @@ export default function NewConsultation() {
             <Input label="Teléfono" name="phone" value={newPatient.phone} onChange={updateNewPatient} required type="tel" inputMode="numeric" pattern="[0-9]*" error={formErrors.phone} />
             <Input label="Contacto de emergencia" name="emergency_contact" value={newPatient.emergency_contact} onChange={updateNewPatient} required type="tel" inputMode="numeric" pattern="[0-9]*" error={formErrors.emergency_contact} />
             <div className="sm:col-span-2">
-              <Input label="Correo electrónico (opcional, para recordatorios)" name="email" value={newPatient.email} onChange={updateNewPatient} type="email" error={formErrors.email} />
+              <Input label="Correo electrónico (recibirá aquí sus credenciales)" name="email" value={newPatient.email} onChange={updateNewPatient} required type="email" error={formErrors.email} />
             </div>
             {age !== null && (
               <p className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800 sm:col-span-2">Edad calculada: <strong>{age} {age === 1 ? 'año' : 'años'}</strong>. Este valor no se guarda.</p>
             )}
           </div>
           <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            Al crear la ficha se genera un usuario y una contraseña temporal. En su primer acceso, el propio paciente
-            leerá y aceptará los Términos y Condiciones y el uso de sus datos antes de usar el portal.
+            Al crear la ficha se genera un usuario y una contraseña temporal que se envían al correo del paciente desde el
+            correo institucional. En su primer acceso, el propio paciente leerá y aceptará los Términos y Condiciones y el
+            uso de sus datos antes de usar el portal.
           </p>
-          <button type="submit" disabled={creating} className="mt-4 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">
-            {creating ? 'Creando ficha...' : 'Crear ficha y continuar'}
+          <button type="submit" disabled={creating} className="inline-flex items-center gap-1.5 mt-4 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white disabled:opacity-50">
+            <IconSave className="h-3.5 w-3.5 shrink-0" />{creating ? 'Creando ficha...' : 'Crear ficha y continuar'}
           </button>
         </form>
       )}
@@ -334,26 +335,13 @@ export default function NewConsultation() {
               <h2 className="mt-1 text-lg font-black text-slate-900">{patient.full_name || patient.username}</h2>
               <p className="text-xs text-slate-600">C.I. {patient.national_id} · {patient.age != null ? `${patient.age} ${patient.age === 1 ? 'año' : 'años'}` : 'Edad no registrada'}</p>
             </div>
-            {credentials && (
-              <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-xs font-bold text-amber-900">Credenciales temporales del paciente</p>
-                <p className="mt-1 text-[11px] text-amber-800">Entrégalas de forma segura. El paciente deberá cambiar la contraseña en su primer acceso.</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <Credential label="Usuario" value={credentials.username} />
-                  <Credential label="Contraseña temporal" value={credentials.temporary_password} />
-                </div>
-                <button type="button" onClick={() => setCredentials(null)} className="mt-3 text-[11px] font-bold text-amber-800 underline">
-                  Ocultar credenciales
-                </button>
-              </section>
-            )}
+            {credentials && <CredentialsSent patientId={patient.id} credentials={credentials} />}
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-white px-3 py-1 text-[10px] font-bold text-emerald-700">
                 {patient.has_active_treatment ? 'Tiene tratamiento activo' : 'Sin tratamiento activo'}
               </span>
-              <button type="button" onClick={resetPatient} className="rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100">
-                Cambiar paciente
-              </button>
+              <IconButton to={`/panel-doctor/pacientes/${patient.id}/historia`} icon={IconHistory} tone="success" label="Historia clínica" />
+              <IconButton icon={IconUsers} tone="success" label="Cambiar paciente" onClick={resetPatient} />
             </div>
           </div>
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -426,16 +414,35 @@ function Input({ label, name, value, onChange, required, type = 'text', inputMod
   );
 }
 
-function Credential({ label, value }) {
-  const copy = async () => {
-    await navigator.clipboard.writeText(value);
+// Estado del envío de las credenciales por correo, con la opción de reenviarlas.
+function CredentialsSent({ patientId, credentials }) {
+  const [state, setState] = useState(credentials);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const resend = async () => {
+    setBusy(true);
+    setMessage('');
+    try {
+      const { data } = await api.post(`/patients/${patientId}/credentials/`);
+      setState((current) => ({ ...current, ...data }));
+      setMessage('Se generó una contraseña temporal nueva y se envió de nuevo. La anterior ya no sirve.');
+    } catch (error) {
+      setMessage(error.response?.data?.detail || 'No se pudieron reenviar las credenciales.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <button type="button" onClick={copy} className="rounded-xl border border-amber-200 bg-white p-3 text-left hover:bg-amber-100">
-      <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-700">{label}</span>
-      <span className="mt-1 block break-all font-mono text-sm font-bold text-slate-900">{value}</span>
-      <span className="mt-1 block text-[10px] text-amber-700">Presiona para copiar</span>
-    </button>
+    <section aria-label="Credenciales del paciente" className="rounded-2xl border border-blue-200 bg-white p-4 text-xs text-slate-700">
+      <p className="font-bold text-slate-900">Credenciales enviadas a {state.email}</p>
+      <p className="mt-1">Usuario: <strong>{state.username}</strong>. La contraseña temporal solo viaja por correo; deberá cambiarla en su primer acceso.</p>
+      {state.error && <p role="alert" className="mt-1 text-rose-700">{state.error}</p>}
+      <button type="button" onClick={resend} disabled={busy} className="inline-flex items-center gap-1.5 mt-2 rounded-lg border border-blue-200 px-3 py-1.5 font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50">
+        <IconMail className="h-3.5 w-3.5 shrink-0" />{busy ? 'Reenviando...' : 'Reenviar credenciales'}
+      </button>
+      {message && <p role="status" className="mt-1 text-slate-600">{message}</p>}
+    </section>
   );
 }

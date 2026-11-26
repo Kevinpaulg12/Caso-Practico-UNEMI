@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { IconSearch, IconShield } from '../components/Icons';
+import { IconArrowLeft, IconArrowRight, IconSearch, IconShield } from '../components/Icons';
 import api from '../services/api';
 
 export default function AuditLog() {
@@ -101,8 +101,8 @@ export default function AuditLog() {
         <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
           <span>{count} {count === 1 ? 'evento' : 'eventos'}</span>
           <div className="flex gap-2">
-            <button type="button" disabled={page === 1} onClick={() => setPage((value) => value - 1)} className="rounded-lg border border-slate-200 px-3 py-1 disabled:opacity-40">Anterior</button>
-            <button type="button" disabled={!hasNext} onClick={() => setPage((value) => value + 1)} className="rounded-lg border border-slate-200 px-3 py-1 disabled:opacity-40">Siguiente</button>
+            <button type="button" disabled={page === 1} onClick={() => setPage((value) => value - 1)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1 disabled:opacity-40"><IconArrowLeft className="h-3.5 w-3.5 shrink-0" />Anterior</button>
+            <button type="button" disabled={!hasNext} onClick={() => setPage((value) => value + 1)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1 disabled:opacity-40">Siguiente<IconArrowRight className="h-3.5 w-3.5 shrink-0" /></button>
           </div>
         </div>
       </section>

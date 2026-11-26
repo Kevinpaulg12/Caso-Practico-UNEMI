@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import AdminLayout from '../components/AdminLayout';
-import { IconSearch } from '../components/Icons';
+import IconButton from '../components/IconButton';
+import { useAuth } from '../context/AuthContext';
+import { IconArrowLeft, IconArrowRight, IconSearch, IconUserCheck, IconUserPlus, IconUserX } from '../components/Icons';
 import api from '../services/api';
 
 const emptyForm = { username: '', first_name: '', last_name: '', email: '', role: 'DOC' };
@@ -12,6 +14,8 @@ function errorText(error, fallback) {
 }
 
 export default function AdminUsers() {
+  const { user: me } = useAuth() ?? {};
+  const [busyId, setBusyId] = useState(null);
   const [users, setUsers] = useState([]);
   const [count, setCount] = useState(0);
   const [summary, setSummary] = useState(null);
@@ -61,11 +65,18 @@ export default function AdminUsers() {
   };
 
   const toggleActive = async (user) => {
+    setBusyId(user.id);
     try {
-      await api.patch(`/admin/users/${user.id}/`, { is_active: !user.is_active });
+      const { data } = await api.patch(`/admin/users/${user.id}/`, { is_active: !user.is_active });
+      setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, ...data } : item)));
+      setError('');
       load();
     } catch (requestError) {
-      setError(errorText(requestError, 'No se pudo actualizar el usuario.'));
+      setError(requestError.response?.status === 403
+        ? 'Tu sesión cambió a otra cuenta en otra pestaña: vuelve a iniciar sesión como administrador.'
+        : errorText(requestError, 'No se pudo actualizar el usuario.'));
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -78,7 +89,7 @@ export default function AdminUsers() {
     >
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric title="Usuarios activos" value={summary?.active_users} />
-        <Metric title="Pacientes activos" value={summary?.patients} />
+        <Metric title="Pacientes en monitoreo" value={summary?.patients} />
         <Metric title="Profesionales" value={summary && summary.doctors + summary.admins} detail={summary && `${summary.doctors} doctores · ${summary.admins} administradores`} />
         <Metric title="Eventos auditados" value={summary?.audit_events} />
       </div>
@@ -110,9 +121,9 @@ export default function AdminUsers() {
           <button
             type="button"
             onClick={() => setShowForm((value) => !value)}
-            className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95"
           >
-            + Nuevo usuario
+            <IconUserPlus className="h-3.5 w-3.5 shrink-0" />Nuevo usuario
           </button>
         </div>
 
@@ -121,7 +132,7 @@ export default function AdminUsers() {
             <Field label="Usuario" name="username" value={form.username} onChange={update} required />
             <Field label="Nombres" name="first_name" value={form.first_name} onChange={update} required />
             <Field label="Apellidos" name="last_name" value={form.last_name} onChange={update} required />
-            <Field label="Correo" name="email" type="email" value={form.email} onChange={update} />
+            <Field label={form.role === 'DOC' ? 'Correo (recibe alertas y agenda)' : 'Correo'} name="email" type="email" value={form.email} onChange={update} required={form.role === 'DOC'} />
             <label className="text-xs font-bold text-slate-700">
               Rol
               <select name="role" value={form.role} onChange={update} className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-normal">
@@ -129,7 +140,7 @@ export default function AdminUsers() {
                 <option value="ADM">Administrador</option>
               </select>
             </label>
-            <button type="submit" className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white sm:col-span-2 lg:col-span-5">Crear cuenta</button>
+            <button type="submit" className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white sm:col-span-2 lg:col-span-5"><IconUserPlus className="h-3.5 w-3.5 shrink-0" />Crear cuenta</button>
           </form>
         )}
 
@@ -159,9 +170,17 @@ export default function AdminUsers() {
                     </span>
                   </td>
                   <td className="p-3 text-right">
-                    <button type="button" onClick={() => toggleActive(user)} className="font-semibold text-blue-600 hover:text-blue-800 hover:underline">
-                      {user.is_active ? 'Desactivar' : 'Activar'}
-                    </button>
+                    <div className="flex justify-end">
+                      {/* Nadie se desactiva a sí mismo: el servidor lo rechaza y el botón no se ofrece. */}
+                      <IconButton
+                        icon={user.is_active ? IconUserX : IconUserCheck}
+                        label={me?.id === user.id ? 'No puedes desactivar tu propia cuenta' : `${user.is_active ? 'Desactivar' : 'Activar'} a ${user.full_name || user.username}`}
+                        tone={user.is_active ? 'danger' : 'success'}
+                        busy={busyId === user.id}
+                        disabled={busyId === user.id || (me?.id === user.id && user.is_active)}
+                        onClick={() => toggleActive(user)}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -175,8 +194,8 @@ export default function AdminUsers() {
         <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
           <span>{count} {count === 1 ? 'usuario' : 'usuarios'}</span>
           <div className="flex gap-2">
-            <button type="button" disabled={page === 1} onClick={() => setPage((value) => value - 1)} className="rounded-lg border border-slate-200 px-3 py-1 disabled:opacity-40">Anterior</button>
-            <button type="button" disabled={!hasNext} onClick={() => setPage((value) => value + 1)} className="rounded-lg border border-slate-200 px-3 py-1 disabled:opacity-40">Siguiente</button>
+            <button type="button" disabled={page === 1} onClick={() => setPage((value) => value - 1)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1 disabled:opacity-40"><IconArrowLeft className="h-3.5 w-3.5 shrink-0" />Anterior</button>
+            <button type="button" disabled={!hasNext} onClick={() => setPage((value) => value + 1)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1 disabled:opacity-40">Siguiente<IconArrowRight className="h-3.5 w-3.5 shrink-0" /></button>
           </div>
         </div>
       </section>

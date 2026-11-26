@@ -130,11 +130,13 @@ class MedicalTextAnalysisTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data['nlp_severity'], 'Alta')
-        self.assertEqual(response.data['risk_level'], 'Alto')
-        self.assertTrue(response.data['doctor_notified'])
-        self.assertIn('doctor', response.data['recommendation'])
-        self.assertEqual(PatientReport.objects.get().patient, patient)
+        report = PatientReport.objects.get()
+        self.assertEqual((report.patient, report.nlp_severity, report.risk_level), (patient, 'Alta', 'Alto'))
+        self.assertTrue(report.doctor_notified)
+        self.assertIn('doctor', report.recommendation)
+        # El paciente no recibe el triaje: lo ve solo su odontólogo.
+        for hidden in ('nlp_severity', 'risk_level', 'doctor_notified', 'recommendation', 'alert_color'):
+            self.assertNotIn(hidden, response.data)
 
     def test_patient_report_rejects_invalid_pain_level(self):
         patient = User.objects.create_user(
@@ -174,7 +176,7 @@ class MedicalTextAnalysisTests(APITestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data['eva_score'], 9)
-        self.assertTrue(response.data['doctor_notified'])
+        self.assertTrue(PatientReport.objects.get().doctor_notified)
         self.assertEqual(ClinicalEvolutionSummary.objects.count(), 1)
 
     def test_patient_only_sees_own_prescriptions(self):

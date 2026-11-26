@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { fetchAll } from '../services/pagination';
+import { IconHistory, IconPencil } from './Icons';
+import IconButton from './IconButton';
 
 const formatDate = (value) => (value ? new Date(`${value}T00:00:00`).toLocaleDateString('es-EC') : '—');
 
@@ -58,13 +59,9 @@ export default function PatientTreatments({ patientId }) {
               </span>
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Link to={`/panel-doctor/tratamientos/${plan.id}`} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-bold text-slate-700 hover:bg-slate-100">
-                Ver historial
-              </Link>
+              <IconButton to={`/panel-doctor/tratamientos/${plan.id}`} icon={IconHistory} label="Ver historial" />
               {plan.is_active && (
-                <Link to={`/panel-doctor/tratamientos/${plan.id}?editar=1`} className="rounded-lg border border-blue-200 bg-white px-2.5 py-1.5 font-bold text-blue-700 hover:bg-blue-50">
-                  Editar tratamiento
-                </Link>
+                <IconButton to={`/panel-doctor/tratamientos/${plan.id}?editar=1`} icon={IconPencil} tone="primary" label="Editar tratamiento" />
               )}
             </div>
           </li>

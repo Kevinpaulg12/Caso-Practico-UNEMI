@@ -89,6 +89,22 @@ class DischargeAllTreatmentsTests(TreatmentTestCase):
         self.assertEqual(plans, [])
         self.assertEqual(self.report().status_code, 400)
 
+    def test_after_discharge_the_patient_still_sees_their_past_treatments(self):
+        self.discharge()
+        self.login(self.patient)
+        plans = self.client.get('/api/treatment-plans/', {'include_closed': 'true'}).data['results']
+        prescriptions = self.client.get('/api/prescriptions/', {'include_closed': 'true'}).data['results']
+        # Lo más reciente primero, y todo cerrado.
+        self.assertEqual([item['id'] for item in plans], [self.second.pk, self.first.pk])
+        self.assertFalse(any(item['is_active'] for item in plans + prescriptions))
+        self.assertEqual({item['medication_name'] for item in prescriptions}, {'Paracetamol', 'Ibuprofeno'})
+        # Las notas clínicas internas no llegan al paciente.
+        self.assertNotIn('clinical_notes', plans[0])
+        # Nunca los de otro paciente.
+        other = User.objects.create_user('other-patient', password='x', role=User.Roles.PATIENT)
+        self.login(other)
+        self.assertEqual(self.client.get('/api/treatment-plans/', {'include_closed': 'true'}).data['results'], [])
+
     def test_after_discharge_the_patient_leaves_the_dashboard_and_appears_in_history(self):
         self.discharge()
         self.login(self.doctor)
@@ -232,3 +248,100 @@ class TreatmentHistoryTests(TreatmentTestCase):
         plan = self.consult()
         self.assertEqual(self.history(plan, user=self.other_doctor).status_code, 404)
         self.assertEqual(self.history(plan, user=self.patient).status_code, 403)
+
+
+class SeveralMedicationsTests(TreatmentTestCase):
+    """Una receta puede llevar uno o más medicamentos."""
+
+    def medication(self, name, frequency='Cada 8 horas', duration='3 días'):
+        return {'medication_name': name, 'active_ingredient': name, 'strength': '500 mg', 'dosage_form': 'Tableta',
+                'frequency': frequency, 'duration': duration}
+
+    def consult_with(self, items, **extra):
+        self.login(self.doctor)
+        return self.client.post('/api/consultations/', {
+            'patient': self.patient.pk, 'procedure': 'Exodoncia simple', 'admission_reason': 'Dolor en molar inferior',
+            'instructions': 'Compresas frías 15 minutos cada hora.', 'medications': items,
+            'surgery_date': str(timezone.localdate()), **extra,
+        }, format='json')
+
+    def test_a_consultation_issues_one_prescription_per_medication(self):
+        response = self.consult_with([self.medication('Amoxicilina', duration='7 días'), self.medication('Ibuprofeno', 'Cada 12 horas')])
+        self.assertEqual(response.status_code, 201, response.data)
+        plan = TreatmentPlan.objects.get(pk=response.data['treatment']['id'])
+        # El primero es el principal del plan.
+        self.assertEqual((plan.title, plan.medication_name), ('Amoxicilina', 'Amoxicilina'))
+        self.assertEqual([item['medication_name'] for item in response.data['prescriptions']], ['Amoxicilina', 'Ibuprofeno'])
+        active = plan.prescriptions.filter(is_active=True)
+        self.assertEqual(active.count(), 2)
+        self.assertIn('ibuprofeno 500 mg tableta cada 12 horas durante 3 días', active.get(medication_name='Ibuprofeno').details.lower())
+        # El paciente ve las dos recetas y la explicación las incluye.
+        prescriptions, _ = self.patient_portal()
+        self.assertEqual({item['medication_name'] for item in prescriptions}, {'Amoxicilina', 'Ibuprofeno'})
+        from .ai.explain import local_explanation, source_text
+        steps = local_explanation(plan, source_text(plan)).medicacion
+        self.assertEqual([step.nombre for step in steps], ['Amoxicilina 500 mg', 'Ibuprofeno 500 mg'])
+
+    def test_each_medication_is_validated_in_its_position(self):
+        broken = {**self.medication('Ibuprofeno'), 'duration': 'mucho'}
+        response = self.consult_with([self.medication('Amoxicilina'), broken, self.medication('amoxicilina')])
+        self.assertEqual(response.status_code, 400)
+        errors = response.data['medications']
+        self.assertEqual(errors[0], {})
+        self.assertIn('duration', errors[1])
+        self.assertIn('ya está en la receta', errors[2]['medication_name'])
+        for items in ([], [self.medication(f'Fármaco {index}') for index in range(11)]):
+            with self.subTest(count=len(items)):
+                self.assertEqual(self.consult_with(items).status_code, 400)
+        self.assertFalse(TreatmentPlan.objects.exists())
+
+    def test_editing_the_main_medication_keeps_the_others(self):
+        plan_id = self.consult_with([self.medication('Amoxicilina'), self.medication('Ibuprofeno')]).data['treatment']['id']
+        response = self.client.patch(f'/api/treatment-plans/{plan_id}/', {'frequency': 'Cada 6 horas'}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        active = Prescription.objects.filter(treatment_plan_id=plan_id, is_active=True)
+        self.assertEqual({(item.medication_name, item.frequency) for item in active},
+                         {('Amoxicilina', 'Cada 6 horas'), ('Ibuprofeno', 'Cada 8 horas')})
+
+    def test_editing_the_treatment_can_add_change_and_remove_medications(self):
+        plan_id = self.consult_with([self.medication('Amoxicilina')]).data['treatment']['id']
+        url = f'/api/treatment-plans/{plan_id}/'
+        self.assertEqual([item['medication_name'] for item in self.client.get(url).data['medications']], ['Amoxicilina'])
+        # Añadir un segundo medicamento.
+        response = self.client.patch(url, {'medications': [self.medication('Amoxicilina'), self.medication('Ibuprofeno')]}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual([item['medication_name'] for item in response.data['medications']], ['Amoxicilina', 'Ibuprofeno'])
+        change = TreatmentChange.objects.filter(treatment_plan_id=plan_id).latest('created_at')
+        self.assertEqual(change.summary, 'Medicación: Amoxicilina 500 mg → Amoxicilina 500 mg, Ibuprofeno 500 mg')
+        # La misma receta otra vez no registra nada.
+        self.client.patch(url, {'medications': [self.medication('Amoxicilina'), self.medication('Ibuprofeno')]}, format='json')
+        self.assertEqual(TreatmentChange.objects.filter(treatment_plan_id=plan_id, summary__startswith='Medicación').count(), 1)
+        # Quitar el principal: el siguiente pasa a ser el del plan.
+        self.client.patch(url, {'medications': [self.medication('Ibuprofeno')]}, format='json')
+        plan = TreatmentPlan.objects.get(pk=plan_id)
+        self.assertEqual((plan.medication_name, plan.title), ('Ibuprofeno', 'Ibuprofeno'))
+        self.assertEqual(list(plan.prescriptions.filter(is_active=True).values_list('medication_name', flat=True)), ['Ibuprofeno'])
+        # Sin medicación.
+        self.client.patch(url, {'medications': []}, format='json')
+        self.assertFalse(Prescription.objects.filter(treatment_plan_id=plan_id, is_active=True).exists())
+
+    def test_editing_medications_validates_each_one(self):
+        plan_id = self.consult_with([self.medication('Amoxicilina')]).data['treatment']['id']
+        response = self.client.patch(f'/api/treatment-plans/{plan_id}/', {
+            'medications': [self.medication('Amoxicilina'), {**self.medication('Ibuprofeno'), 'strength': ''}],
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['medications'][0], {})
+        self.assertIn('strength', response.data['medications'][1])
+        self.assertEqual(Prescription.objects.filter(treatment_plan_id=plan_id, is_active=True).count(), 1)
+
+    def test_a_control_replaces_the_whole_prescription(self):
+        plan_id = self.consult_with([self.medication('Amoxicilina'), self.medication('Ibuprofeno')]).data['treatment']['id']
+        response = self.client.post(f'/api/treatment-plans/{plan_id}/controls/', {
+            'prescribes_medication': True, 'medications': [self.medication('Paracetamol'), self.medication('Clorhexidina')],
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        active = Prescription.objects.filter(treatment_plan_id=plan_id, is_active=True)
+        self.assertEqual(sorted(active.values_list('medication_name', flat=True)), ['Clorhexidina', 'Paracetamol'])
+        self.assertEqual(Prescription.objects.filter(treatment_plan_id=plan_id, is_active=False).count(), 2)
+        self.assertEqual(TreatmentPlan.objects.get(pk=plan_id).medication_name, 'Paracetamol')

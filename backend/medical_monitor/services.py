@@ -1,17 +1,12 @@
-import http.client
-import json
 import re
 import threading
 import unicodedata
-from urllib.parse import quote
-from urllib.request import Request, urlopen
 
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db import transaction
 
 from . import rules
-from .caching import medication_guides
 from .models import AlertSettings
 from .nlp import affirmed_symptoms, extract_entities, longest_duration
 
@@ -90,72 +85,25 @@ def analyze_medical_text(text):
     }
 
 
+GUIDE_FIELDS = ('name', 'common_effects', 'what_to_do', 'warning_signs', 'source_note', 'indications', 'mechanism')
+
+
 def find_medication_guide(text, guides=None):
-    normalized_text = text.casefold()
-    for guide in (medication_guides() if guides is None else guides):
-        if any(term.casefold() in normalized_text for term in guide.search_terms):
-            return {
-                'name': guide.name,
-                'common_effects': guide.common_effects,
-                'what_to_do': guide.what_to_do,
-                'warning_signs': guide.warning_signs,
-                'source_note': guide.source_note,
-            }
-    return None
+    """Guía para el paciente del fármaco mencionado en el texto (genérico o marca).
 
-
-def search_medications(term, limit=8):
-    """Search public RxNav data without sending patient or clinical information."""
-    normalized = ' '.join((term or '').split())[:80]
-    if len(normalized) < 2:
-        return {'source': 'local', 'items': [], 'message': 'Escribe al menos dos letras.'}
-
-    items = []
-    try:
-        request = Request(
-            f'https://rxnav.nlm.nih.gov/REST/drugs.json?name={quote(normalized)}',
-            headers={'User-Agent': 'DentalSenseAI/1.0'},
-        )
-        with urlopen(request, timeout=4) as response:
-            payload = json.loads(response.read().decode('utf-8'))
-        for group in payload.get('drugGroup', {}).get('conceptGroup', []):
-            for concept in group.get('conceptProperties', []):
-                name = concept.get('name', '').strip()
-                if name:
-                    items.append({
-                        'name': name,
-                        'rxcui': concept.get('rxcui'),
-                        'source': 'RxNav',
-                    })
-    except (OSError, ValueError, TimeoutError, http.client.HTTPException):
-        items = []
-
-    if not items:
-        normalized_term = normalized.casefold()
-        for guide in medication_guides():
-            if normalized_term in guide.name.casefold() or any(
-                normalized_term in term.casefold() for term in guide.search_terms
-            ):
-                items.append({
-                    'name': guide.name,
-                    'rxcui': None,
-                    'source': 'Catálogo local',
-                })
-        return {
-            'source': 'local',
-            'items': items[:limit],
-            'message': 'Catálogo externo no disponible; se muestran coincidencias locales.',
-        }
-
-    unique = {}
-    for item in items:
-        unique[item['name'].casefold()] = item
-    return {'source': 'RxNav', 'items': list(unique.values())[:limit], 'message': ''}
-
-
-def parse_medication_strength(name):
-    match = re.search(r'(\d+(?:[.,]\d+)?)\s*(mcg|mg|ml|g|%)(?![a-z])', name or '', re.IGNORECASE)
-    return f'{match.group(1)} {match.group(2)}' if match else ''
+    Gana el nombre más largo: «amoxicilina + ácido clavulánico» antes que «amoxicilina».
+    """
+    from .medications import fold, guidance_catalog
+    normalized = fold(text)
+    best, best_length = None, 0
+    for guide in (guidance_catalog() if guides is None else guides):
+        for term in guide['terms']:
+            folded = fold(term)
+            if folded and len(folded) > best_length and re.search(rf'(?<!\w){re.escape(folded)}(?!\w)', normalized):
+                best, best_length = guide, len(folded)
+    if best is None:
+        return None
+    return {field: best.get(field, '') for field in GUIDE_FIELDS}
 
 
 def evaluate_patient_status(pain_level, comparison, message, previous_report=None, postoperative_day=None,
@@ -169,11 +117,12 @@ def evaluate_patient_status(pain_level, comparison, message, previous_report=Non
     thresholds = AlertSettings.load()
     findings = []
 
-    if pain_level >= thresholds.high_pain:
+    known_pain = pain_level is not None
+    if known_pain and pain_level >= thresholds.high_pain:
         findings.append(('Alto', f'Dolor EVA {pain_level} (umbral de riesgo alto: {thresholds.high_pain})'))
-    elif pain_level >= thresholds.medium_pain:
+    elif known_pain and pain_level >= thresholds.medium_pain:
         findings.append(('Medio', f'Dolor EVA {pain_level} (umbral de riesgo medio: {thresholds.medium_pain})'))
-    if comparison == 'higher' and pain_level >= thresholds.rising_pain:
+    if known_pain and comparison == 'higher' and pain_level >= thresholds.rising_pain:
         findings.append(('Alto', f'El dolor aumentó y está en EVA {pain_level}'))
     findings += [('Alto', f'Signo de alarma: {label}') for label in detect_symptoms(message)]
     if analysis['severity'] == 'Alta' and not any(level == 'Alto' for level, _ in findings):
@@ -182,8 +131,9 @@ def evaluate_patient_status(pain_level, comparison, message, previous_report=Non
         findings.append(('Medio', 'El mensaje describe una molestia moderada'))
     findings += rules.evaluate(rules.RuleContext(
         symptoms=affirmed_symptoms(analysis['entities']),
-        pain_level=pain_level,
-        comparison=comparison,
+        # Las reglas por especialidad comparan el EVA con umbrales: un dolor no dicho no dispara ninguna.
+        pain_level=pain_level if known_pain else 0,
+        comparison=comparison or None,
         day=postoperative_day,
         thresholds=thresholds,
         protocol=protocol,
@@ -193,7 +143,8 @@ def evaluate_patient_status(pain_level, comparison, message, previous_report=Non
     risk_level = max((level for level, _ in findings), key=RISK_RANK.get, default='Bajo')
     reasons = list(dict.fromkeys(reason for level, reason in findings if level == risk_level))
 
-    pain_increased = previous_report is not None and pain_level > previous_report.pain_level
+    pain_increased = (known_pain and previous_report is not None and previous_report.pain_level is not None
+                      and pain_level > previous_report.pain_level)
     if comparison == 'higher':
         evolution_status = 'Requiere revisión'
     elif comparison == 'lower' and (risk_level == 'Alto' or pain_increased):
@@ -237,29 +188,56 @@ def evaluate_patient_status(pain_level, comparison, message, previous_report=Non
     }
 
 
-def notify_primary_doctor(patient, report):
-    """Avisa por correo al médico asignado; el panel muestra la alerta aunque no tenga correo."""
+def alert_recipients(patient):
+    """(correos, motivo). El tratante con correo; si no lo tiene, los demás odontólogos activos con correo."""
+    from users.models import User
+
     profile = getattr(patient, 'profile', None)
     doctor = profile.primary_doctor if profile else None
-    if not doctor or not doctor.email:
+    if doctor and doctor.email:
+        return [doctor.email], 'primary'
+    others = list(
+        User.objects.filter(role=User.Roles.DOCTOR, is_active=True).exclude(email='')
+        .exclude(pk=getattr(doctor, 'pk', None)).values_list('email', flat=True)
+    )
+    return others, 'fallback'
+
+
+def notify_primary_doctor(patient, report):
+    """Avisa por correo de inmediato de una alerta roja: no basta con que se vea en el panel.
+
+    Devuelve 'primary' (al tratante), 'fallback' (el tratante no tiene correo: a los demás odontólogos)
+    o False (no hay a quién escribir).
+    """
+    recipients, target = alert_recipients(patient)
+    if not recipients:
         return False
+    name = patient.get_full_name() or patient.username
+    plan_id = getattr(report, 'treatment_plan_id', None)
+    link = f'{settings.PORTAL_URL}/panel-doctor/tratamientos/{plan_id}' if plan_id else f'{settings.PORTAL_URL}/panel-doctor/monitoreo'
+    lines = [
+        f'{name} reportó síntomas de riesgo alto en su seguimiento.',
+        f'Motivo: {"; ".join(report.alert_reasons) or "revisa su evolución"}.',
+    ]
+    if report.pain_level is not None:
+        lines.append(f'Dolor (EVA): {report.pain_level}/10.')
+    message = ' '.join((report.message or '').split())
+    if message:
+        lines.append(f'Lo que contó: «{message[:400]}{"…" if len(message) > 400 else ""}»')
+    if target == 'fallback':
+        lines.append('Recibes este aviso porque su odontólogo tratante no tiene un correo registrado.')
+    lines += ['', f'Abrir su tratamiento: {link}', 'Valora contactar al paciente lo antes posible.']
 
     def send():
-        send_mail(
-            'DentalSense: alerta roja',
-            f'{patient.get_full_name() or patient.username} registró EVA {report.pain_level}. '
-            'Revisa su ficha en el panel clínico.',
-            settings.DEFAULT_FROM_EMAIL,
-            [doctor.email],
-            fail_silently=True,
-        )
+        send_mail(f'DentalSense: alerta roja de {name}', '\n'.join(lines), settings.DEFAULT_FROM_EMAIL,
+                  recipients, fail_silently=True)
 
     # El correo sale después de responder al paciente: un servidor SMTP lento no debe frenar el reporte.
     if settings.EMAIL_IN_BACKGROUND:
         transaction.on_commit(lambda: threading.Thread(target=send, daemon=True).start())
     else:
         transaction.on_commit(send)
-    return True
+    return target
 
 
 def evaluate_treatment_plan(title, procedure, instructions, side_effects):

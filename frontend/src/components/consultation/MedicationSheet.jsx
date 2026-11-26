@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import api from '../../services/api';
+import { IconFileText } from '../Icons';
 
 const SECTIONS = [
   ['indications', 'Para qué sirve'],
@@ -28,8 +29,8 @@ export default function MedicationSheet({ name }) {
 
   if (current.status === 'idle') {
     return (
-      <button type="button" onClick={load} className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100">
-        Ver ficha de {name}
+      <button type="button" onClick={load} className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100">
+        <IconFileText className="h-3.5 w-3.5 shrink-0" />Ver ficha de {name}
       </button>
     );
   }

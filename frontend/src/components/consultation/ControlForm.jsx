@@ -2,19 +2,21 @@ import { useState } from 'react';
 import api from '../../services/api';
 import {
   CONTROL,
-  EMPTY_MEDICATION,
   fieldsFor,
   flattenApiErrors,
-  medicationPayload,
+  medicationListErrors,
+  medicationsPayload,
+  newMedication,
   nextControlDate,
   protocolPayload,
   today,
-  validateMedication,
+  validateMedications,
   validateNextControl,
   validateProtocolFields,
 } from '../../services/consultationRules';
-import { IconAlertTriangle } from '../Icons';
-import MedicationSection from './MedicationSection';
+import { IconAlertTriangle, IconSave, IconX } from '../Icons';
+import MedicationList from './MedicationList';
+import PresetTextField from './PresetTextField';
 import ProtocolFields from './ProtocolFields';
 import { CheckField, Field, NextControlField, TextField } from './fields';
 
@@ -29,8 +31,14 @@ export default function ControlForm({ plan, onSaved, onCancel }) {
     next_control_in_days: protocol?.control_every_days != null ? String(protocol.control_every_days) : '',
   });
   const [clinicalData, setClinicalData] = useState({});
+  // Fase en curso y la siguiente: el control que cierra una fase es el que inicia la próxima.
+  const phases = plan.phases ?? [];
+  const currentPhase = phases.find((phase) => phase.status === 'active');
+  const upcomingPhase = phases.find((phase) => phase.status === 'pending');
+  const [advancePhase, setAdvancePhase] = useState(false);
   const [prescribes, setPrescribes] = useState(false);
-  const [medication, setMedication] = useState(EMPTY_MEDICATION);
+  const [medicationItems, setMedicationItems] = useState(() => [newMedication()]);
+  const [medicationErrors, setMedicationErrors] = useState({ list: [], general: '' });
   const [errors, setErrors] = useState({});
   const [clinicalErrors, setClinicalErrors] = useState({});
   const [error, setError] = useState('');
@@ -49,7 +57,9 @@ export default function ControlForm({ plan, onSaved, onCancel }) {
     event.preventDefault();
     const notes = form.notes.trim();
     const instructions = form.instructions.trim();
-    const nextErrors = prescribes ? validateMedication(medication) : {};
+    const listErrors = prescribes ? validateMedications(medicationItems) : null;
+    setMedicationErrors({ list: listErrors ?? [], general: '' });
+    const nextErrors = listErrors ? { medications: 'Revisa los medicamentos de la receta.' } : {};
     if (!form.date || form.date > today()) nextErrors.date = 'Indica una fecha de control que no sea futura.';
     else if (plan.surgery_date && form.date < plan.surgery_date) nextErrors.date = 'El control no puede ser anterior al inicio del tratamiento.';
     if (notes.length > 1000) nextErrors.notes = 'No puede superar 1000 caracteres.';
@@ -72,11 +82,13 @@ export default function ControlForm({ plan, onSaved, onCancel }) {
         next_control_in_days: Number(form.next_control_in_days || 0),
         instructions: instructions || undefined,
         prescribes_medication: prescribes,
-        ...(prescribes ? medicationPayload(medication, instructions || plan.instructions) : {}),
+        advance_phase: advancePhase && Boolean(upcomingPhase),
+        ...(prescribes ? medicationsPayload(medicationItems, instructions || plan.instructions) : {}),
       });
       onSaved(data);
     } catch (requestError) {
       const { errors: apiErrors, clinical } = flattenApiErrors(requestError.response?.data);
+      if (requestError.response?.data?.medications) setMedicationErrors(medicationListErrors(requestError.response.data.medications));
       setErrors(apiErrors);
       setClinicalErrors(clinical);
       setError(apiErrors.detail || 'No se pudo guardar el control. Revisa los datos e inténtalo nuevamente.');
@@ -103,33 +115,40 @@ export default function ControlForm({ plan, onSaved, onCancel }) {
       </div>
       <ProtocolFields fields={fields} values={clinicalData} errors={clinicalErrors} onChange={(values) => { setClinicalData(values); setClinicalErrors({}); setError(''); }} />
       <TextField label="Notas del control (opcional)" name="notes" value={form.notes} onChange={update} maxLength={1000} placeholder="Qué se hizo y qué se observó en esta visita..." error={errors.notes} />
-      <TextField label="Indicaciones nuevas para el paciente (opcional)" name="instructions" value={form.instructions} onChange={update} maxLength={1000} placeholder="Déjalo vacío para mantener las indicaciones actuales." error={errors.instructions} />
+      <PresetTextField field="instructions" specialty={protocol?.specialty} label="Indicaciones nuevas para el paciente (opcional)" name="instructions" value={form.instructions} onChange={update} maxLength={1000} placeholder="Déjalo vacío para mantener las indicaciones actuales." error={errors.instructions} />
+      {plan.is_active && upcomingPhase && (
+        <CheckField
+          name="advance_phase"
+          label={currentPhase ? `Este control completa la fase «${currentPhase.name}» e inicia «${upcomingPhase.name}»` : `Este control inicia la fase «${upcomingPhase.name}»`}
+          hint="La fase cambia con la fecha de este control y queda registrada en el historial."
+          checked={advancePhase}
+          onChange={(event) => { setAdvancePhase(event.target.checked); setError(''); }}
+        />
+      )}
+      {errors.advance_phase && <p role="alert" className="text-[11px] text-rose-600">{errors.advance_phase}</p>}
       <CheckField
         name="prescribes_medication"
         label="Recetar o cambiar la medicación"
-        hint="Se emite una receta nueva y la anterior queda en el historial."
+        hint="Se emite una receta nueva (con uno o más medicamentos) y la anterior queda en el historial."
         checked={prescribes}
         onChange={(event) => { setPrescribes(event.target.checked); setError(''); }}
       />
       {prescribes && (
-        <MedicationSection
-          values={medication}
-          errors={errors}
-          onChange={(patch) => {
-            setMedication((current) => ({ ...current, ...patch }));
-            setErrors((current) => ({ ...current, ...Object.fromEntries(Object.keys(patch).map((key) => [key, ''])) }));
-            setError('');
-          }}
+        <MedicationList
+          items={medicationItems}
+          errors={medicationErrors.list}
+          general={medicationErrors.general}
+          onChange={(items) => { setMedicationItems(items); setMedicationErrors({ list: [], general: '' }); setError(''); }}
         />
       )}
       <div className="flex flex-wrap justify-end gap-2">
         {onCancel && (
-          <button type="button" onClick={onCancel} disabled={saving} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-            Cancelar
+          <button type="button" onClick={onCancel} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <IconX className="h-3.5 w-3.5 shrink-0" />Cancelar
           </button>
         )}
-        <button type="submit" disabled={saving} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50">
-          {saving ? 'Guardando...' : 'Guardar control'}
+        <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50">
+          <IconSave className="h-3.5 w-3.5 shrink-0" />{saving ? 'Guardando...' : 'Guardar control'}
         </button>
       </div>
     </form>

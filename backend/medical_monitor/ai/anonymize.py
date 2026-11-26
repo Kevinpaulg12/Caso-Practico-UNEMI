@@ -55,6 +55,7 @@ def age_text(age):
 
 def plan_context(plan):
     """Contexto clínico mínimo y sin identificadores para el modelo."""
+    from ..treatments import active_medications, medication_text  # evita un ciclo de importación
     procedure = plan.clinical_procedure
     phase = plan.current_phase
     return {
@@ -65,5 +66,5 @@ def plan_context(plan):
         'unidad_de_seguimiento': procedure.get_follow_up_unit_display() if procedure else 'Días',
         'fase_actual': phase.name if phase else None,
         'piezas_dentales_fdi': plan.teeth or [],
-        'medicacion': ' '.join(filter(None, (plan.medication_name, plan.strength, plan.frequency, plan.duration))) or None,
+        'medicacion': '; '.join(medication_text(item) for item in active_medications(plan)) or None,
     }

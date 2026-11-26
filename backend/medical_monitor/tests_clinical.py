@@ -6,12 +6,13 @@ from django.core import mail
 from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework.throttling import ScopedRateThrottle
 
 from users.models import User, UserProfile
 
-from .models import AlertSettings, AuditEvent, ClinicalProcedure, Prescription, TreatmentPlan
+from .models import AlertSettings, AuditEvent, ClinicalProcedure, InstructionPreset, Prescription, TreatmentPlan
 from .services import evaluate_patient_status
 
 
@@ -78,7 +79,7 @@ class AuditTests(ClinicalTestCase):
         self.login(self.doctor)
         self.assertEqual(self.client.get('/api/audit-events/').status_code, 403)
         self.login(self.admin)
-        response = self.client.get('/api/audit-events/', {'search': 'autorreporte', 'days': '7'})
+        response = self.client.get('/api/audit-events/', {'search': 'cómo se siente', 'days': '7'})
         self.assertEqual(response.data['count'], 1)
         url = f"/api/audit-events/{response.data['results'][0]['id']}/"
         self.assertEqual(self.client.delete(url).status_code, 405)
@@ -135,6 +136,33 @@ class ReportsSummaryTests(ClinicalTestCase):
         self.login(self.other_doctor)
         self.assertEqual(self.client.get(self.url).data['patients_monitored'], 0)
 
+    def test_activity_lists_the_treatments_the_doctor_started(self):
+        self.login(self.doctor)
+        for procedure, medications in (('Exodoncia simple', ['Amoxicilina', 'Ibuprofeno']), ('Exodoncia simple', []), ('Endodoncia', [])):
+            response = self.client.post('/api/consultations/', {
+                'patient': self.patient.pk, 'procedure': procedure, 'admission_reason': 'Dolor en molar inferior',
+                'instructions': 'Compresas frías 15 minutos cada hora.', 'surgery_date': str(timezone.localdate()),
+                'prescribes_medication': bool(medications),
+                **({'medications': [{'medication_name': name, 'active_ingredient': name, 'strength': '500 mg',
+                                     'dosage_form': 'Tableta', 'frequency': 'Cada 8 horas', 'duration': '3 días'}
+                                    for name in medications]} if medications else {}),
+            }, format='json')
+            self.assertEqual(response.status_code, 201, response.data)
+        # Un tratamiento de otro odontólogo no entra en su informe.
+        TreatmentPlan.objects.create(patient=self.patient, doctor=self.other_doctor, title='x', treatment_type='therapy',
+                                     schedule_description='x', instructions='x', procedure='Blanqueamiento')
+        activity = self.client.get(self.url).data['activity']
+        self.assertEqual((activity['treatments_started'], activity['treatments_active'], activity['patients_treated']), (3, 3, 1))
+        self.assertEqual(activity['prescriptions_issued'], 2)
+        self.assertEqual(activity['by_procedure'][0], {
+            'procedure': 'Exodoncia simple', 'specialty': 'Sin protocolo', 'total': 2, 'active': 2, 'discharged': 0, 'patients': 1,
+        })
+        self.assertEqual({item['name'] for item in activity['top_medications']}, {'Amoxicilina', 'Ibuprofeno'})
+        row = next(item for item in activity['treatments'] if item['medications'])
+        self.assertEqual((row['patient_name'], row['status'], row['medications']), ('Ana Ruiz', 'En curso', ['Amoxicilina', 'Ibuprofeno']))
+        self.login(self.other_doctor)
+        self.assertEqual(self.client.get(self.url).data['activity']['treatments_started'], 1)
+
     def test_permissions_and_validation(self):
         self.login(self.admin)
         self.assertEqual(self.client.get(self.url).status_code, 403)
@@ -181,6 +209,13 @@ class AdminUserTests(ClinicalTestCase):
         response = self.client.post(
             self.url, {'username': 'nueva', 'first_name': 'Eva', 'last_name': 'Paz', 'role': 'DOC'}, format='json',
         )
+        # Sin correo no: por él recibe las alertas rojas y su agenda del día.
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('email', response.data)
+        response = self.client.post(
+            self.url, {'username': 'nueva', 'first_name': 'Eva', 'last_name': 'Paz', 'role': 'DOC', 'email': 'eva@clinica.ec'},
+            format='json',
+        )
         self.assertEqual(response.status_code, 201)
         user = User.objects.get(username='nueva')
         self.assertTrue(user.must_change_password)
@@ -207,6 +242,20 @@ class NotificationTests(ClinicalTestCase):
             self.report(9)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ['d@example.com'])
+        self.assertIn('alerta roja', mail.outbox[0].subject)
+        # Incluye lo que contó el paciente y el enlace directo a su tratamiento.
+        self.assertIn('/panel-doctor/tratamientos/', mail.outbox[0].body)
+
+    def test_without_the_dentist_email_the_other_dentists_are_warned(self):
+        from .models import AuditEvent
+        User.objects.filter(pk=self.doctor.pk).update(email='')
+        self.patient.profile.primary_doctor.refresh_from_db()
+        User.objects.create_user('guardia', password='x', role=User.Roles.DOCTOR, email='guardia@clinica.ec')
+        with self.captureOnCommitCallbacks(execute=True):
+            self.report(9)
+        self.assertIn('guardia@clinica.ec', mail.outbox[0].to)
+        self.assertIn('no tiene un correo registrado', mail.outbox[0].body)
+        self.assertTrue(AuditEvent.objects.filter(action__startswith='Alerta sin correo del tratante').exists())
 
     def test_low_risk_does_not_email(self):
         self.report(1)
@@ -228,3 +277,42 @@ class SecurityTests(ClinicalTestCase):
         with self.assertRaises(CommandError):
             call_command('seed_demo', stdout=StringIO())
         self.assertEqual(Prescription.objects.count(), 1)
+
+
+class InstructionPresetTests(ClinicalTestCase):
+    URL = '/api/doctor/instruction-presets/'
+
+    def test_doctor_saves_and_lists_only_own_phrases(self):
+        InstructionPreset.objects.create(doctor=self.other_doctor, field='instructions', text='Frase de otro odontólogo')
+        self.login(self.doctor)
+        created = self.client.post(self.URL, {'field': 'instructions', 'text': '  Usa  cera de ortodoncia '}, format='json')
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.data['text'], 'Usa cera de ortodoncia')
+        self.client.post(self.URL, {'field': 'diet', 'text': 'Nada de chicle'}, format='json')
+        listed = self.client.get(self.URL, {'field': 'instructions'})
+        self.assertEqual([item['text'] for item in listed.data], ['Usa cera de ortodoncia'])
+        self.assertEqual(len(self.client.get(self.URL).data), 2)
+
+    def test_duplicate_and_limit_are_rejected(self):
+        self.login(self.doctor)
+        self.client.post(self.URL, {'field': 'diet', 'text': 'Dieta blanda'}, format='json')
+        duplicate = self.client.post(self.URL, {'field': 'diet', 'text': 'dieta blanda'}, format='json')
+        self.assertEqual(duplicate.status_code, 400)
+        self.assertIn('Ya tienes', str(duplicate.data['text']))
+        InstructionPreset.objects.bulk_create([
+            InstructionPreset(doctor=self.doctor, field='diet', text=f'Frase {index}') for index in range(29)
+        ])
+        full = self.client.post(self.URL, {'field': 'diet', 'text': 'Una más'}, format='json')
+        self.assertEqual(full.status_code, 400)
+
+    def test_doctor_deletes_only_own_phrase(self):
+        other = InstructionPreset.objects.create(doctor=self.other_doctor, field='diet', text='Ajena')
+        mine = InstructionPreset.objects.create(doctor=self.doctor, field='diet', text='Mía')
+        self.login(self.doctor)
+        self.assertEqual(self.client.delete(f'{self.URL}{other.id}/').status_code, 404)
+        self.assertEqual(self.client.delete(f'{self.URL}{mine.id}/').status_code, 204)
+
+    def test_patient_and_admin_cannot_use_presets(self):
+        for user in (self.patient, self.admin):
+            self.login(user)
+            self.assertEqual(self.client.get(self.URL).status_code, 403)

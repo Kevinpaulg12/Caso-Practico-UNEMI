@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { IconLogout, IconUser } from './Icons';
 
 export default function Navbar() {
   const { isAuthenticated, logout } = useAuth();
@@ -24,15 +25,15 @@ export default function Navbar() {
         </div>
         <div>
           {!isAuthenticated ? (
-            <Link to="/login" className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
-              Iniciar Sesión
+            <Link to="/login" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">
+              <IconUser className="h-4 w-4 shrink-0" />Iniciar Sesión
             </Link>
           ) : (
             <button
               onClick={logout}
-              className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
             >
-              Cerrar Sesión
+              <IconLogout className="h-4 w-4 shrink-0" />Cerrar Sesión
             </button>
           )}
         </div>

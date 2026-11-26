@@ -1,7 +1,7 @@
 """Indicaciones en lenguaje sencillo y preguntas del paciente sobre ellas.
 
-El modelo solo puede usar el texto que escribió el odontólogo (receta e indicaciones): si una duda
-no se responde con ese texto, se deriva al odontólogo. La explicación se guarda y solo se regenera
+Las dudas del paciente se responden citando literalmente lo que escribió el odontólogo (indicaciones,
+dieta y receta): si una duda no se responde con ese texto, se deriva al odontólogo. La explicación se guarda y solo se regenera
 cuando cambian las indicaciones.
 """
 import hashlib
@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from ..models import AIInteraction, PlainExplanation
 from ..nlp import plain
+from ..treatments import active_medications, medication_text
 from .anonymize import plan_context
 from .client import AIUnavailable, ai_enabled, structured_call
 from .prompts import explanation_system, question_system
@@ -40,15 +41,9 @@ class ExplanationOutput(BaseModel):
     cuando_llamar: list[str] = Field(default_factory=list, description='Señales para llamar a la clínica.')
 
 
-class AnswerOutput(BaseModel):
-    respuesta: str
-    basada_en_indicaciones: bool
-
-
 def source_text(plan):
     """Lo que escribió el odontólogo: es la única fuente que puede usar el modelo."""
-    medication = ' '.join(filter(None, (plan.medication_name, plan.strength, plan.dosage_form, plan.frequency,
-                                        f'durante {plan.duration}' if plan.duration else '')))
+    medication = '; '.join(medication_text(item) for item in active_medications(plan))
     parts = {
         'tratamiento': plan.procedure or plan.title,
         'receta': medication,
@@ -72,13 +67,14 @@ def local_explanation(plan, parts):
     avoid = [item for item in instructions if plain(item).startswith(('no ', 'evita', 'evitar'))]
     steps = [item for item in instructions if item not in avoid]
     alarms = list(getattr(plan.clinical_procedure, 'alarm_symptoms', None) or [])
-    medication = []
-    if plan.medication_name:
-        medication.append(MedicationStep(
-            nombre=' '.join(filter(None, (plan.medication_name, plan.strength))),
-            como_tomarlo=', '.join(filter(None, (plan.dosage_form, plan.frequency.lower() if plan.frequency else '',
-                                                 f'durante {plan.duration}' if plan.duration else ''))),
-        ))
+    medication = [
+        MedicationStep(
+            nombre=' '.join(filter(None, (item['medication_name'], item['strength']))),
+            como_tomarlo=', '.join(filter(None, (item['dosage_form'], (item['frequency'] or '').lower(),
+                                                 f'durante {item["duration"]}' if item['duration'] else ''))),
+        )
+        for item in active_medications(plan)
+    ]
     return ExplanationOutput(
         resumen=f'Estas son las indicaciones de tu odontólogo para tu {(parts.get("tratamiento") or "tratamiento").lower()}.',
         pasos=steps,
@@ -116,38 +112,84 @@ def explanation_for(plan):
 
 
 
-def local_answer(parts, question):
-    """Busca en las indicaciones la frase que más palabras comparte con la pregunta."""
+PERSISTS = 'Si la molestia persiste o aumenta, comunícate con la clínica al 04 270 0000.'
+MIN_QUOTE = 10
+
+
+class GroundedAnswer(BaseModel):
+    cita: str | None = Field(
+        default=None, description='Fragmento copiado literalmente de las indicaciones que responde la duda, o null.',
+    )
+
+
+def doctor_text(plan):
+    """Lo que el odontólogo dejó escrito para el paciente: lo único que el asistente puede citar."""
+    medication = '; '.join(medication_text(item) for item in active_medications(plan))
+    parts = {
+        'indicaciones': plan.instructions,
+        'dieta': getattr(plan, 'diet_instructions', ''),
+        'receta': medication,
+        'efectos_a_observar': plan.side_effects,
+    }
+    return {key: value for key, value in parts.items() if value}
+
+
+def _doctor_sentences(parts):
+    return [sentence for text in parts.values() for sentence in _sentences(text)]
+
+
+def quoted_sentence(parts, quote):
+    """La frase del odontólogo que contiene la cita; None si la cita no está en su texto (la IA inventó)."""
+    wanted = ' '.join(plain(quote or '').split()).strip(' .«»"')
+    if len(wanted) < MIN_QUOTE:
+        return None
+    return next((sentence for sentence in _doctor_sentences(parts) if wanted in ' '.join(plain(sentence).split())), None)
+
+
+def local_quote(parts, question):
+    """Frase de las indicaciones que más palabras comparte con la pregunta."""
     words = {word for word in re.findall(r'\w+', plain(question)) if word not in STOPWORDS and len(word) > 2}
-    candidates = [sentence for text in parts.values() for sentence in _sentences(text)]
     scored = sorted(
-        ((len(words & set(re.findall(r'\w+', plain(sentence)))), sentence) for sentence in candidates),
+        ((len(words & set(re.findall(r'\w+', plain(sentence)))), sentence) for sentence in _doctor_sentences(parts)),
         reverse=True,
     )
-    if scored and scored[0][0] > 0:
-        return AnswerOutput(respuesta=f'Según tus indicaciones: {scored[0][1]}.', basada_en_indicaciones=True)
-    return AnswerOutput(respuesta=ASK_DOCTOR, basada_en_indicaciones=False)
+    return scored[0][1] if scored and scored[0][0] > 0 else None
+
+
+def grounded_reply(quote):
+    if quote is None:
+        return ASK_DOCTOR
+    return f'Según las indicaciones de tu odontólogo: «{quote}». {PERSISTS}'
 
 
 def answer_question(plan, question):
-    parts = source_text(plan)
-    payload = {'texto_del_odontologo': parts, 'pregunta_del_paciente': question}
-    try:
-        output, model = structured_call(
-            AIInteraction.Feature.QUESTION,
-            system=question_system(),
-            user=json.dumps(payload, ensure_ascii=False),
-            output_format=AnswerOutput,
-            effort='low',
-            max_tokens=600,
-        )
-        source = 'llm'
-        if not output.basada_en_indicaciones:
-            # Lo que no está en las indicaciones siempre se deriva al odontólogo.
-            output = AnswerOutput(respuesta=output.respuesta or ASK_DOCTOR, basada_en_indicaciones=False)
-    except AIUnavailable:
-        output, model, source = local_answer(parts, question), '', 'local'
-    return {'answer': output.respuesta, 'grounded': output.basada_en_indicaciones, 'source': source, 'model': model}
+    """Responde una duda solo citando lo que escribió el odontólogo; nunca con recomendaciones propias.
+
+    El modelo solo elige el fragmento. El servidor comprueba que exista en el texto del odontólogo y
+    redacta la respuesta; si el modelo cita algo que no está, se usa la búsqueda local.
+    """
+    parts = doctor_text(plan)
+    source, model = 'local', ''
+    quote = None
+    if parts:
+        try:
+            output, model = structured_call(
+                AIInteraction.Feature.QUESTION,
+                system=question_system(),
+                user=json.dumps({'texto_del_odontologo': parts, 'pregunta_del_paciente': question}, ensure_ascii=False),
+                output_format=GroundedAnswer,
+                effort='low',
+                max_tokens=400,
+            )
+            source = 'llm'
+            quote = quoted_sentence(parts, output.cita) if output.cita else None
+            if output.cita and quote is None:
+                # La cita no está en las indicaciones: se descarta y decide la búsqueda local.
+                source, quote = 'local', local_quote(parts, question)
+        except AIUnavailable:
+            quote = local_quote(parts, question)
+    return {'answer': grounded_reply(quote), 'grounded': quote is not None, 'quote': quote, 'source': source,
+            'model': model}
 
 
 def explanation_payload(explanation):

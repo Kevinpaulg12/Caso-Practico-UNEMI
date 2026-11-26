@@ -66,7 +66,7 @@ export default function EvolutionChart({ patientId }) {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 font-bold text-slate-800">
                     <AlertDot color={report.alert_color} />
-                    {ALERT_LABELS[report.alert_color]} · EVA {report.pain_level}
+                    {ALERT_LABELS[report.alert_color]} · {report.pain_level == null ? 'sin EVA' : `EVA ${report.pain_level}`}
                     {report.postoperative_day !== null && ` · Día ${report.postoperative_day}`}
                   </span>
                   <span className="text-[10px] text-slate-400">{new Date(report.created_at).toLocaleString('es-EC')}</span>

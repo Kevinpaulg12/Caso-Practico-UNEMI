@@ -31,6 +31,7 @@ class TreatmentPlanSerializer(MedicationGuidanceMixin, serializers.ModelSerializ
     current_phase = serializers.SerializerMethodField()
     next_control = serializers.SerializerMethodField()
     clinical_data_display = serializers.SerializerMethodField()
+    medications = serializers.SerializerMethodField()
 
     class Meta:
         model = TreatmentPlan
@@ -45,6 +46,7 @@ class TreatmentPlanSerializer(MedicationGuidanceMixin, serializers.ModelSerializ
             'schedule_description',
             'next_due_time',
             'instructions',
+            'diet_instructions',
             'side_effects',
             'day_number',
             'current_day',
@@ -77,6 +79,7 @@ class TreatmentPlanSerializer(MedicationGuidanceMixin, serializers.ModelSerializ
             'next_control_date',
             'clinical_data',
             'clinical_data_display',
+            'medications',
         ]
         read_only_fields = [
             'patient_name', 'treatment_type_label', 'current_day',
@@ -87,11 +90,24 @@ class TreatmentPlanSerializer(MedicationGuidanceMixin, serializers.ModelSerializ
     def validate_patient(self, value):
         return validate_patient_target(self, value)
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        # Las notas clínicas internas son para el equipo odontológico, nunca para el paciente.
+        if request is not None and getattr(request.user, 'role', None) == 'PAT':
+            data.pop('clinical_notes', None)
+        return data
+
     def get_patient_full_name(self, obj):
         return obj.patient.get_full_name() or obj.patient.username
 
     def validate_teeth(self, value):
         return validate_teeth(value)
+
+    def get_medications(self, obj):
+        """Medicamentos vigentes del tratamiento (uno por receta activa)."""
+        from .treatments import active_medications
+        return active_medications(obj)
 
     def get_procedure_detail(self, obj):
         procedure = obj.clinical_procedure

@@ -2,7 +2,7 @@
 export function homePath(user) {
   if (user?.must_accept_terms) return '/consentimiento';
   if (user?.must_change_password) return '/mi-cuenta?section=security&firstLogin=1';
-  if (user?.role === 'DOC') return '/panel-doctor';
+  if (user?.role === 'DOC') return '/panel-doctor/monitoreo';
   if (user?.role === 'ADM') return '/panel-admin';
   return '/panel-paciente';
 }

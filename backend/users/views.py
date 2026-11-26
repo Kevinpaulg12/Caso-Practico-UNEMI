@@ -4,7 +4,7 @@ from django.db import models
 from rest_framework import mixins, viewsets
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.views import APIView
 
 from medical_monitor.audit import record_audit
@@ -13,6 +13,7 @@ from medical_monitor.models import PatientReport, TreatmentPlan
 from .models import UserProfile, patients_of
 from .serializers import UserProfileSerializer
 from .serializers_me import CurrentUserSerializer
+from .credentials import credentials_status, mask_email, resend_credentials, send_credentials
 from .serializers_patients import PatientCreateSerializer
 from .serializers_patients import PatientSearchSerializer
 
@@ -31,7 +32,7 @@ class UserProfileViewSet(
 
     def get_queryset(self):
         profile, _ = UserProfile.objects.get_or_create(user=self.request.user)
-        return UserProfile.objects.filter(pk=profile.pk).order_by('pk')
+        return UserProfile.objects.filter(pk=profile.pk).select_related('primary_doctor__profile').order_by('pk')
 
 
 class CurrentUserViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
@@ -94,15 +95,40 @@ class PatientCreateView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         patient, temporary_password = serializer.save()
-        record_audit(request.user, f'Creó la ficha de {patient.username}', 'Pacientes')
+        # Las credenciales viajan solo por correo institucional; la respuesta nunca incluye la contraseña.
+        send_credentials(patient, temporary_password, request.user)
+        record_audit(request.user, f'Creó la ficha de {patient.username} y envió sus credenciales por correo', 'Pacientes')
         return Response(
             {
                 'id': patient.id,
                 'username': patient.username,
                 'full_name': patient.get_full_name(),
                 'age': patient.age,
-                'temporary_password': temporary_password,
+                'credentials': {'email': mask_email(patient.email), 'sent_at': None, 'error': ''},
                 'message': 'Paciente registrado correctamente.',
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class PatientCredentialsView(APIView):
+    """GET: estado del envío de las credenciales. POST: genera otra contraseña temporal y la reenvía."""
+
+    def _patient(self, request, patient_id):
+        if request.user.role != request.user.Roles.DOCTOR:
+            raise PermissionDenied('Solo el equipo médico gestiona las credenciales de los pacientes.')
+        patient = patients_of(request.user).filter(pk=patient_id).select_related('profile').first()
+        if patient is None:
+            raise NotFound('Este paciente no existe o no es tuyo.')
+        return patient
+
+    def get(self, request, patient_id):
+        return Response(credentials_status(self._patient(request, patient_id)))
+
+    def post(self, request, patient_id):
+        patient = self._patient(request, patient_id)
+        if not patient.email:
+            raise ValidationError({'email': 'El paciente no tiene correo registrado.'})
+        resend_credentials(patient, request.user)
+        record_audit(request.user, f'Reenvió las credenciales de {patient.username}', 'Pacientes')
+        return Response(credentials_status(patient), status=status.HTTP_202_ACCEPTED)

@@ -1,9 +1,6 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import api from '../../services/api';
-import ChartLoading from '../charts/ChartLoading';
 import { IconCheckCircle } from '../Icons';
-
-const AdherenceChart = lazy(() => import('../charts/AdherenceChart'));
 
 // Checklist diario: el paciente marca lo que cumplió; mide la adherencia al tratamiento.
 export default function CareChecklist({ canReport }) {
@@ -43,8 +40,7 @@ export default function CareChecklist({ canReport }) {
   if (state.status === 'error') return <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-xs text-rose-700">No se pudieron cargar tus cuidados.</p>;
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-6">
+    <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-sm font-bold text-slate-900">Mis cuidados de hoy</h2>
         <p className="text-xs text-slate-500">Marca lo que ya hiciste. Tu odontólogo ve cuánto cumples tus indicaciones.</p>
         {!canReport || state.items.length === 0 ? (
@@ -67,16 +63,6 @@ export default function CareChecklist({ canReport }) {
             {error && <p role="alert" className="text-xs text-rose-600">{error}</p>}
           </form>
         )}
-      </section>
-      <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-6">
-        <h2 className="text-sm font-bold text-slate-900">Cumplimiento de los últimos días</h2>
-        <p className="text-xs text-slate-500">
-          {state.adherence != null ? `Promedio de los últimos 7 días: ${state.adherence} %` : 'Aún no registras tus cuidados.'}
-        </p>
-        <Suspense fallback={<ChartLoading />}>
-          <AdherenceChart checkins={state.history} />
-        </Suspense>
-      </section>
-    </div>
+    </section>
   );
 }

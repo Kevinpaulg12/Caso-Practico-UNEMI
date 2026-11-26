@@ -190,7 +190,7 @@ class RF02AlertLevelTests(RequirementsTestCase):
         self.make_plan(days_ago=3)
         response = self.send_report(message='Me sigue sangrando un poco')
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data['alert_color'], 'amarillo')
+        self.assertNotIn('alert_color', response.data)
         report = PatientReport.objects.get()
         self.assertEqual((report.risk_level, report.postoperative_day), ('Medio', 3))
         self.assertEqual(report.alert_reasons, ['Sangrado después de las primeras 48 horas'])

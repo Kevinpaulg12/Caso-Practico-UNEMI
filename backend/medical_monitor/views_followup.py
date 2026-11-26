@@ -1,13 +1,14 @@
 """Checklist de cuidados, recordatorios, asistente conversacional y métricas de la IA."""
 import json
 import logging
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.conf import settings
 from django.db import models
 from django.http import StreamingHttpResponse
 from django.utils import timezone
-from rest_framework import status
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
@@ -19,12 +20,16 @@ from users.models import User, patients_of
 from .ai import assistant
 from .ai.client import ai_enabled
 from .audit import record_audit
-from .models import AIInteraction, CareCheckin, TreatmentPlan
+from .models import AIInteraction, AppointmentRequest, CareCheckin, TreatmentPlan
 from .nlp import CARE, SYMPTOMS
 from .reminders import pending_for_plan
 from .reports import NO_ACTIVE_PLAN, active_plan
-from .serializers_followup import CareCheckinSerializer
-from .serializers_reports import PatientReportSerializer
+from .appointments import cancel as cancel_appointment
+from .serializers_followup import (
+    AppointmentRequestSerializer,
+    CancelAppointmentSerializer,
+    CareCheckinSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +115,7 @@ class RemindersView(APIView):
 
 
 class AssistantView(APIView):
-    """Conversación con el asistente del autorreporte (solo pacientes)."""
+    """Conversación diaria con el asistente (solo pacientes)."""
 
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'assistant'
@@ -136,10 +141,17 @@ class AssistantView(APIView):
         comparison = data.get('comparison') or None
         if comparison not in (None, 'lower', 'same', 'higher'):
             raise ValidationError({'comparison': 'Indica si estás mejor, igual o peor.'})
-        return str(data.get('text', '')), pain if pain != '' else None, comparison
+        chosen = data.get('appointment_date') or None
+        if chosen is not None:
+            try:
+                chosen = date.fromisoformat(str(chosen))
+            except ValueError as error:
+                raise ValidationError({'appointment_date': 'Usa una fecha válida.'}) from error
+        return str(data.get('text', '')), pain if pain != '' else None, comparison, chosen
 
     def post(self, request):
-        result = assistant.handle_message(request.user, *self._message(request))
+        text, pain, comparison, chosen = self._message(request)
+        result = assistant.handle_message(request.user, text, pain, comparison, appointment_date=chosen)
         return Response(result, status=status.HTTP_201_CREATED)
 
 
@@ -157,7 +169,8 @@ class AssistantStreamView(AssistantView):
     http_method_names = ['post', 'options']
 
     def post(self, request):
-        events = assistant.message_events(request.user, *self._message(request), stream=True)
+        text, pain, comparison, chosen = self._message(request)
+        events = assistant.message_events(request.user, text, pain, comparison, stream=True, appointment_date=chosen)
         # El primer evento se pide aquí: un mensaje no válido responde 400 normal, no un flujo roto.
         first = next(events)
 
@@ -181,15 +194,46 @@ class AssistantStreamView(AssistantView):
         return response
 
 
-class AssistantSubmitView(APIView):
-    def post(self, request):
-        if request.user.role != User.Roles.PATIENT:
-            raise PermissionDenied('El asistente está reservado para el seguimiento del paciente.')
-        conversation_id = request.data.get('conversation') if isinstance(request.data, dict) else None
-        if not isinstance(conversation_id, int):
-            raise ValidationError({'conversation': 'Indica la conversación a enviar.'})
-        report = assistant.submit(request.user, conversation_id)
-        return Response(PatientReportSerializer(report).data, status=status.HTTP_201_CREATED)
+class AppointmentRequestViewSet(viewsets.ReadOnlyModelViewSet):
+    """Citas reservadas en el chat.
+
+    El paciente ve las suyas; el odontólogo, las de su agenda y las de sus pacientes. Nadie las
+    confirma a mano: se reservan en un turno libre. Ambos pueden cancelarlas (POST /{id}/cancel/).
+    ?status=booked|cancelled|attended, ?upcoming=true (solo las que aún no ocurren).
+    """
+
+    serializer_class = AppointmentRequestSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = AppointmentRequest.objects.select_related('patient', 'doctor', 'treatment_plan', 'handled_by')
+        if user.role == User.Roles.PATIENT:
+            queryset = queryset.filter(patient=user)
+        elif user.role == User.Roles.DOCTOR:
+            queryset = queryset.filter(models.Q(doctor=user) | models.Q(patient__in=patients_of(user))).distinct()
+        else:
+            return queryset.none()
+        state = self.request.query_params.get('status')
+        if state:
+            if state not in AppointmentRequest.Status.values:
+                raise ValidationError({'status': 'Estado no válido.'})
+            queryset = queryset.filter(status=state)
+        if self.request.query_params.get('upcoming') == 'true':
+            return queryset.filter(starts_at__gte=timezone.now()).order_by('starts_at', 'id')
+        return queryset
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        item = self.get_object()
+        if item.status != AppointmentRequest.Status.BOOKED:
+            raise ValidationError({'detail': 'Esta cita ya no está reservada.'})
+        if item.starts_at and item.starts_at < timezone.now():
+            raise ValidationError({'detail': 'La cita ya pasó; no se puede cancelar.'})
+        serializer = CancelAppointmentSerializer(data=request.data if isinstance(request.data, dict) else {})
+        serializer.is_valid(raise_exception=True)
+        cancel_appointment(item, request.user, serializer.validated_data['reason'])
+        record_audit(request.user, f'Canceló la cita {item.pk}', 'Agenda')
+        return Response(AppointmentRequestSerializer(item).data)
 
 
 class VocabularyView(APIView):

@@ -9,8 +9,9 @@ from datetime import date, timedelta
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
+from .appointments import mark_attended
 from .models import ControlVisit, TreatmentPlan
-from .treatments import MEDICATION_FIELDS, display_clinical_data, replace_prescription
+from .treatments import MAX_MEDICATIONS, MEDICATION_FIELDS, advance_phase, display_clinical_data, next_phase, replace_prescriptions
 
 INICIO, CONTROL = 'inicio', 'control'
 DURATION = re.compile(r'[1-9]\d{0,2}\s*(día|días|semana|semanas|mes|meses)', re.IGNORECASE)
@@ -47,6 +48,39 @@ def clean_medication(data):
     if not DURATION.fullmatch(values['duration']):
         errors['duration'] = 'Usa un formato como 3 días.'
     return values, errors
+
+
+def clean_medications(data):
+    """Devuelve (lista de medicamentos, errores).
+
+    Acepta `medications: [...]` (uno o más) o, por compatibilidad, los campos de un solo medicamento.
+    Con la lista, los errores van en `medications` alineados por posición: [{campo: mensaje}, ...].
+    """
+    raw = data.get('medications')
+    if raw is None:
+        item, errors = clean_medication(data)
+        return [item], errors
+    if not isinstance(raw, list) or not raw:
+        return [], {'medications': 'Agrega al menos un medicamento.'}
+    if len(raw) > MAX_MEDICATIONS:
+        return [], {'medications': f'Una receta admite como máximo {MAX_MEDICATIONS} medicamentos.'}
+    items, item_errors = [], []
+    for entry in raw:
+        entry = entry if isinstance(entry, dict) else {}
+        item, errors = clean_medication(entry)
+        # Texto completo de esa receta (vía, alimentos, notas) tal como lo compuso el formulario.
+        details = text(entry, 'details')
+        if details:
+            if len(details) > 2000:
+                errors['details'] = 'El texto de la receta no puede superar 2000 caracteres.'
+            item['details'] = details
+        items.append(item)
+        item_errors.append(errors)
+    names = [item['medication_name'].lower() for item in items]
+    for index, name in enumerate(names):
+        if name and names.index(name) != index:
+            item_errors[index]['medication_name'] = 'Este medicamento ya está en la receta.'
+    return items, ({'medications': item_errors} if any(item_errors) else {})
 
 
 def compose_details(medication, instructions):
@@ -175,10 +209,15 @@ def register_control(plan, doctor, data):
     instructions = text(data, 'instructions')
     if instructions and not 10 <= len(instructions) <= 1000:
         errors['instructions'] = 'Escribe indicaciones entre 10 y 1000 caracteres.'
-    medication = None
+    medications = []
     if wants_medication(data, default=False):
-        medication, medication_errors = clean_medication(data)
+        medications, medication_errors = clean_medications(data)
         errors.update(medication_errors)
+    medication = medications[0] if medications else None
+    # La fase del tratamiento se completa al registrar el control que la cierra.
+    advances = data.get('advance_phase') is True or str(data.get('advance_phase', '')).lower() == 'true'
+    if advances and next_phase(plan)[1] is None:
+        errors['advance_phase'] = 'Es la última fase del tratamiento. Para terminarlo, registra el alta.'
     if errors:
         raise ValidationError(errors)
 
@@ -200,6 +239,10 @@ def register_control(plan, doctor, data):
             setattr(plan, field, medication[field])
         plan.treatment_type = TreatmentPlan.TreatmentType.MEDICATION
     plan.save()
-    if medication:
-        replace_prescription(plan, doctor, medication['active_ingredient'])
+    if medications:
+        replace_prescriptions(plan, doctor, medications)
+    if advances:
+        advance_phase(plan, doctor, on=visit_date)
+    # Si el paciente había reservado una cita ese día, queda atendida.
+    mark_attended(plan.patient, visit_date)
     return visit

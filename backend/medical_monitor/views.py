@@ -9,17 +9,20 @@ from rest_framework.views import APIView
 from django.db import transaction
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from users.models import User, UserProfile, patients_of
+from .appointments import mark_attended
 from .audit import record_audit
 from .models import (
+    AppointmentRequest,
     ClinicalEvolutionSummary,
     ClinicalProcedure,
+    Medication,
     PatientReport,
     Prescription,
-    TreatmentChange,
     TreatmentPhase,
     TreatmentPlan,
 )
 from .serializers import PrescriptionSerializer
+from .serializers_clinical import BrandRegistrationSerializer, MedicationSerializer
 from .serializers_reports import PatientReportSerializer
 from .serializers_treatment import (
     ClinicalEvolutionSummarySerializer,
@@ -27,10 +30,11 @@ from .serializers_treatment import (
 )
 from .ai.explain import answer_question, explanation_for, explanation_payload
 from .ai.summaries import generate_summary, summary_payload
+from . import medications
 from .consultations import (
     INICIO,
     clean_clinical_data,
-    clean_medication,
+    clean_medications,
     clean_next_control,
     compose_details,
     control_payload,
@@ -41,14 +45,15 @@ from .consultations import (
 )
 from .dental import validate_teeth
 from .reports import active_plan, save_patient_report
-from .treatments import MEDICATION_FIELDS, build_history, record_edit, snapshot, validate_edit
+from .treatments import (
+    MEDICATION_FIELDS, advance_phase, build_history, edit_medications, issue_prescriptions, record_edit, snapshot,
+    validate_edit,
+)
 from .services import (
     analyze_medical_text,
     evaluate_patient_status,
     evaluate_treatment_plan,
     notify_primary_doctor,
-    parse_medication_strength,
-    search_medications,
 )
 
 
@@ -82,6 +87,11 @@ def assign_primary_doctor(patient, doctor):
     UserProfile.objects.filter(user=patient, primary_doctor__isnull=True).update(primary_doctor=doctor)
 
 
+def include_closed(request):
+    """El paciente pide también lo ya cerrado: sus tratamientos y recetas anteriores."""
+    return request.query_params.get('include_closed', '').lower() == 'true'
+
+
 class PrescriptionViewSet(viewsets.ModelViewSet):
     queryset = Prescription.objects.select_related('doctor', 'patient').order_by('-created_at')
     serializer_class = PrescriptionSerializer
@@ -89,8 +99,10 @@ class PrescriptionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         if is_patient(self.request.user):
-            # Tras el alta el portal no muestra indicaciones cerradas: el paciente ve solo las vigentes.
-            return queryset.filter(patient=self.request.user, is_active=True)
+            # Las indicaciones del portal son solo las vigentes; su historial (tras el alta incluido)
+            # se pide aparte con ?include_closed=true.
+            queryset = queryset.filter(patient=self.request.user)
+            return queryset if include_closed(self.request) else queryset.filter(is_active=True)
         elif self.request.user.role == self.request.user.Roles.DOCTOR:
             queryset = queryset.filter(doctor=self.request.user)
         is_active = self.request.query_params.get('active')
@@ -162,13 +174,14 @@ class TreatmentPlanViewSet(viewsets.ModelViewSet):
     # Todo lo que usa el serializador llega en 2 consultas, sea cual sea el número de tratamientos.
     queryset = TreatmentPlan.objects.select_related(
         'patient', 'clinical_procedure', 'current_phase',
-    ).prefetch_related('phases')
+    ).prefetch_related('phases', 'prescriptions')
     serializer_class = TreatmentPlanSerializer
 
     def get_queryset(self):
         queryset = super().get_queryset()
         if is_patient(self.request.user):
-            return queryset.filter(patient=self.request.user, is_active=True)
+            queryset = queryset.filter(patient=self.request.user).order_by('-start_date', '-created_at')
+            return queryset if include_closed(self.request) else queryset.filter(is_active=True)
         if self.request.user.role == self.request.user.Roles.DOCTOR:
             queryset = queryset.filter(patient__in=patients_of(self.request.user))
             patient_id = self.request.query_params.get('patient')
@@ -193,6 +206,7 @@ class TreatmentPlanViewSet(viewsets.ModelViewSet):
             data.get('side_effects', ''),
         )
         serializer.save(
+            doctor=self.request.user,
             treatment_severity=evaluation['severity'],
             care_recommendations=evaluation['recommendations'],
         )
@@ -205,6 +219,18 @@ class TreatmentPlanViewSet(viewsets.ModelViewSet):
         plan = serializer.instance
         data = serializer.validated_data
         validate_edit(plan, data)
+        # La receta completa (uno o más medicamentos) viaja como lista; vacía, quita la medicación.
+        raw = self.request.data.get('medications') if isinstance(self.request.data, dict) else None
+        medication_items = None
+        if raw is not None:
+            if raw == []:
+                medication_items = []
+            else:
+                medication_items, errors = clean_medications({'medications': raw})
+                if errors:
+                    raise ValidationError(errors)
+            if any(field in data for field in MEDICATION_FIELDS):
+                raise ValidationError({'medications': 'Envía la medicación solo como lista.'})
         before = snapshot(plan)
         extra = {}
         # En los tratamientos de una consulta el título es el medicamento y el horario, la frecuencia.
@@ -224,6 +250,10 @@ class TreatmentPlanViewSet(viewsets.ModelViewSet):
             care_recommendations=evaluation['recommendations'],
         )
         changes = record_edit(serializer.instance, before, self.request.user)
+        if medication_items is not None:
+            summary = edit_medications(serializer.instance, self.request.user, medication_items)
+            if summary:
+                changes = [*changes, summary]
         if changes:
             record_audit(self.request.user, f'Modificó el tratamiento {plan.pk}: {"; ".join(changes)}'[:240], 'Tratamientos')
 
@@ -274,27 +304,12 @@ class TreatmentPlanViewSet(viewsets.ModelViewSet):
         """Cierra la fase en curso y comienza la siguiente."""
         require_doctor(request.user, 'Solo el odontólogo puede avanzar de fase.')
         plan = self.get_object()
-        if not plan.is_active:
-            raise ValidationError({'detail': 'El tratamiento ya fue cerrado.'})
-        phases = list(plan.phases.order_by('order', 'id'))
-        current = next((phase for phase in phases if phase.pk == plan.current_phase_id), None)
-        following = [phase for phase in phases if current is None or phase.order > current.order]
-        if not following:
-            raise ValidationError({'detail': 'Es la última fase del tratamiento. Para terminarlo, registra el alta.'})
-        today = timezone.localdate()
-        if current is not None:
-            current.status, current.end_date = TreatmentPhase.Status.DONE, today
-            current.save(update_fields=['status', 'end_date'])
-        upcoming = following[0]
-        upcoming.status, upcoming.start_date = TreatmentPhase.Status.ACTIVE, today
-        upcoming.save(update_fields=['status', 'start_date'])
-        plan.current_phase = upcoming
-        plan.last_intervention_date = today
-        plan.save(update_fields=['current_phase', 'last_intervention_date', 'updated_at'])
-        TreatmentChange.objects.create(
-            treatment_plan=plan, author=request.user,
-            summary=f'Fase completada: {current.name}. Inicia: {upcoming.name}.' if current else f'Inicia: {upcoming.name}.',
-        )
+        try:
+            upcoming = advance_phase(plan, request.user)
+        except ValidationError as error:
+            # Respuesta histórica de este endpoint: el motivo va en «detail».
+            detail = error.detail
+            raise ValidationError({'detail': detail.get('advance_phase', detail.get('detail'))}) from error
         record_audit(request.user, f'Avanzó el tratamiento {plan.pk} a la fase «{upcoming.name}»', 'Tratamientos')
         # Se vuelve a leer: las fases cargadas al principio ya no reflejan el cambio.
         return Response(self.get_serializer(self.get_queryset().get(pk=plan.pk)).data)
@@ -344,14 +359,63 @@ class ClinicalEvolutionSummaryViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset.order_by('-created_at', '-id')
 
 
+def require_clinical_staff(user):
+    if user.role not in (user.Roles.DOCTOR, user.Roles.ADMIN):
+        raise PermissionDenied('Solo el equipo autorizado puede consultar el vademécum.')
+
+
 class MedicationSearchView(APIView):
+    """Receta rápida: vademécum de la clínica, CIMA y RxNav, con presentaciones y pauta habitual."""
+
     def get(self, request):
-        if request.user.role not in (request.user.Roles.DOCTOR, request.user.Roles.ADMIN):
-            raise PermissionDenied('Solo el equipo autorizado puede consultar el catálogo.')
-        result = search_medications(request.query_params.get('q', ''))
-        for item in result['items']:
-            item['strength'] = parse_medication_strength(item['name'])
-        return Response(result)
+        require_clinical_staff(request.user)
+        return Response(medications.search(request.query_params.get('q', '')))
+
+
+class MedicationSheetView(APIView):
+    """Ficha del fármaco (para qué sirve, cómo actúa, efectos): del vademécum o del prospecto de CIMA."""
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'ai'
+
+    def get(self, request):
+        require_clinical_staff(request.user)
+        name = ' '.join(str(request.query_params.get('name', '')).split())
+        if not 3 <= len(name) <= 120:
+            raise ValidationError({'name': 'Indica el nombre del medicamento.'})
+        sheet = medications.sheet_for(name)
+        if sheet is None:
+            return Response({'detail': 'No hay una ficha oficial para este medicamento.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(sheet)
+
+
+class MedicationViewSet(viewsets.ModelViewSet):
+    """Vademécum de la clínica: el odontólogo añade marcas locales; el administrador lo revisa y edita."""
+
+    serializer_class = MedicationSerializer
+    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+
+    def get_queryset(self):
+        require_clinical_staff(self.request.user)
+        queryset = Medication.objects.all()
+        if self.request.user.role != self.request.user.Roles.ADMIN:
+            queryset = queryset.filter(is_active=True)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        require_clinical_staff(request.user)
+        serializer = BrandRegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        medication, created = medications.register_brand(**serializer.validated_data)
+        record_audit(request.user, f'Añadió «{serializer.validated_data["brand"]}» al vademécum ({medication.generic_name})', 'Catálogo')
+        return Response(MedicationSerializer(medication).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    def partial_update(self, request, *args, **kwargs):
+        if request.user.role != request.user.Roles.ADMIN:
+            raise PermissionDenied('Solo el administrador edita el vademécum.')
+        response = super().partial_update(request, *args, **kwargs)
+        record_audit(request.user, f'Editó el medicamento {kwargs.get("pk")} del vademécum', 'Catálogo')
+        return response
 
 
 class ConsultationCreateView(APIView):
@@ -379,10 +443,12 @@ class ConsultationCreateView(APIView):
             if clinical_procedure:
                 procedure = procedure or clinical_procedure.name
         # La receta es opcional: depende del tratamiento y de lo que decida el odontólogo.
-        medication = None
+        medication_items = []
         if wants_medication(data, default=True):
-            medication, medication_errors = clean_medication(data)
+            medication_items, medication_errors = clean_medications(data)
             errors.update(medication_errors)
+        # El primero es el medicamento principal del plan (título y pauta); cada uno tiene su receta.
+        medication = medication_items[0] if medication_items else None
         if procedure_id not in (None, '') and clinical_procedure is None:
             errors['clinical_procedure'] = 'Selecciona un tratamiento del catálogo.'
         elif len(procedure) < 3 or len(procedure) > 160:
@@ -394,6 +460,9 @@ class ConsultationCreateView(APIView):
         details = text(data, 'details') or instructions
         if len(details) < 10:
             errors['details'] = 'Escribe indicaciones claras para el paciente.'
+        diet_instructions = text(data, 'diet_instructions')
+        if len(diet_instructions) > 1000:
+            errors['diet_instructions'] = 'La dieta no puede superar 1000 caracteres.'
         side_effects = text(data, 'side_effects')
         if len(side_effects) > 500:
             errors['side_effects'] = 'Los efectos observables no pueden superar 500 caracteres.'
@@ -430,10 +499,20 @@ class ConsultationCreateView(APIView):
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
 
+        # Tras el alta, si el paciente reservó con otro odontólogo, quien inicia el tratamiento nuevo pasa a ser
+        # su tratante (recibe sus alertas). Atenderlo sin esa cita no es apropiárselo.
+        takes_over = (
+            not TreatmentPlan.objects.filter(patient=patient, is_active=True).exists()
+            and AppointmentRequest.objects.filter(
+                patient=patient, doctor=request.user,
+                status__in=(AppointmentRequest.Status.BOOKED, AppointmentRequest.Status.ATTENDED),
+            ).exists()
+        )
         title = medication['medication_name'] if medication else procedure
         evaluation = evaluate_treatment_plan(title, procedure, details, side_effects)
         treatment = TreatmentPlan.objects.create(
             patient=patient,
+            doctor=request.user,
             title=title[:160],
             treatment_type=(
                 TreatmentPlan.TreatmentType.MEDICATION if medication else TreatmentPlan.TreatmentType.THERAPY
@@ -441,6 +520,7 @@ class ConsultationCreateView(APIView):
             schedule_description=(medication or {}).get('frequency') or 'Según indicación profesional',
             # El plan guarda el texto del odontólogo tal cual; la receta conserva la composición completa.
             instructions=instructions or details,
+            diet_instructions=diet_instructions,
             side_effects=side_effects,
             procedure=procedure,
             clinical_procedure=clinical_procedure,
@@ -455,25 +535,22 @@ class ConsultationCreateView(APIView):
             clinical_data=clinical_data,
             next_control_date=next_control_from(start_date, control_days),
         )
-        prescription = None
-        if medication:
-            prescription_details = text(data, 'details') or compose_details(medication, instructions)
-            nlp_result = analyze_medical_text(prescription_details)
-            prescription = Prescription.objects.create(
-                doctor=request.user,
-                patient=patient,
-                treatment_plan=treatment,
-                details=prescription_details,
-                active_ingredient=medication['active_ingredient'],
-                **{field: medication[field] for field in MEDICATION_FIELDS},
-                nlp_severity=nlp_result['severity'],
-                extracted_entities=nlp_result['entities'],
-            )
+        prescriptions = issue_prescriptions(
+            treatment, request.user, medication_items, instructions,
+            details=text(data, 'details') or (compose_details(medication, instructions) if medication else None),
+        )
         create_phases(treatment, clinical_procedure, start_date)
+        for item in medication_items:
+            medications.prepare_sheet_later(item['active_ingredient'])
+        if takes_over:
+            UserProfile.objects.filter(user=patient).update(primary_doctor=request.user)
         assign_primary_doctor(patient, request.user)
+        # La consulta cumple la cita (de valoración o de seguimiento) que el paciente reservó ese día.
+        mark_attended(patient, start_date)
         record_audit(request.user, f'Registró consulta para {patient.username}', 'Consultas')
 
         return Response({
-            'prescription': PrescriptionSerializer(prescription).data if prescription else None,
+            'prescription': PrescriptionSerializer(prescriptions[0]).data if prescriptions else None,
+            'prescriptions': PrescriptionSerializer(prescriptions, many=True).data,
             'treatment': TreatmentPlanSerializer(treatment).data,
         }, status=status.HTTP_201_CREATED)

@@ -3,7 +3,7 @@
 Ninguna prueba llama al modelo real: el cliente de Google Gemini se sustituye por uno simulado.
 """
 import json
-from datetime import timedelta
+from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -20,7 +20,16 @@ from .ai import assistant
 from .ai.anonymize import age_text, mask, plan_context
 from .ai.client import AIUnavailable, partial_string_field, structured_call
 from .ai.explain import ASK_DOCTOR
-from .models import AIInteraction, AssistantMessage, ClinicalProcedure, ClinicalSummary, PatientReport, TreatmentPlan
+from .models import (
+    AIInteraction,
+    AppointmentRequest,
+    AssistantConversation,
+    AssistantMessage,
+    ClinicalProcedure,
+    ClinicalSummary,
+    PatientReport,
+    TreatmentPlan,
+)
 
 LLM_ON = {'AI_ENABLED': True, 'GEMINI_API_KEY': 'clave-de-prueba', 'AI_MODEL': 'gemini-2.5-flash'}
 
@@ -171,61 +180,105 @@ class ClientTests(AIFixture):
 
 
 class AssistantLocalTests(AIFixture):
-    """Sin IA, el asistente sigue el protocolo del tratamiento."""
+    """Sin IA, el asistente acompaña siguiendo el protocolo del tratamiento."""
 
     def say(self, text='', **extra):
         self.login(self.patient)
         return self.client.post('/api/assistant/messages/', {'text': text, **extra}, format='json')
 
-    def test_guided_conversation_until_the_report_is_sent(self):
+    def collected(self):
+        return AssistantConversation.objects.get(is_open=True).collected
+
+    def questions(self):
+        return list(AssistantMessage.objects.filter(role='assistant').values_list('text', flat=True))
+
+    def test_each_message_updates_the_daily_followup_in_silence(self):
         first = self.say('Se me despegó un bracket')
         self.assertEqual(first.status_code, 201)
         self.assertIn('Del 0 al 10', first.data['message']['text'])
-        self.assertEqual(first.data['conversation']['collected']['symptoms'], {'Aparato suelto o roto': None})
+        # El paciente no ve lo que el sistema extrajo ni el nivel de alerta, ni se le pide «enviar».
+        body = first.content.decode()
+        for hidden in ('collected', 'symptoms', 'alert', 'risk', 'ready_to_submit', 'Aparato suelto'):
+            self.assertNotIn(hidden, body)
+        report = PatientReport.objects.get()
+        # Triaje local con las reglas de ortodoncia: aparato suelto -> amarillo, aunque aún no dijo su dolor.
+        self.assertEqual((report.source, report.risk_level, report.pain_level), ('chat', 'Medio', None))
 
-        second = self.say('un 4')
-        self.assertEqual(second.data['conversation']['collected']['pain_level'], 4)
-        self.assertIn('mejor, igual o peor', second.data['message']['text'])
-
-        third = self.say('igual que ayer')
-        # Ahora pregunta lo que indica el protocolo de ortodoncia para ese síntoma.
-        self.assertIn('bracket, el alambre o una liga', third.data['message']['text'])
-        self.assertFalse(third.data['ready_to_submit'])
-
-        reply = self.say('un bracket de abajo')
-        while not reply.data['ready_to_submit']:
-            reply = self.say('nada más')
-        conversation = reply.data['conversation']['id']
-        sent = self.client.post('/api/assistant/submit/', {'conversation': conversation}, format='json')
-        self.assertEqual(sent.status_code, 201)
-        # Triaje local con las reglas de ortodoncia: aparato suelto -> amarillo.
-        self.assertEqual(sent.data['alert_color'], 'amarillo')
+        self.say('un 4')
+        self.say('igual que ayer')
         report = PatientReport.objects.get()
         self.assertEqual((report.pain_level, report.comparison, report.treatment_plan), (4, 'same', self.plan))
         self.assertIn('Se me despegó un bracket', report.message)
-        self.assertEqual(self.client.post('/api/assistant/submit/', {'conversation': conversation}, format='json').status_code, 400)
+        # Las respuestas a las preguntas del día actualizan el mismo seguimiento, no crean otro.
+        self.assertEqual(PatientReport.objects.count(), 1)
+        self.assertEqual(report.extracted_entities, PatientReport.objects.get().extracted_entities)
+
+    def test_no_question_is_repeated_and_nothing_known_is_asked_again(self):
+        first = self.say('Me duele un 6 y estoy peor que ayer')
+        text = first.data['message']['text']
+        self.assertNotIn('Del 0 al 10', text)
+        self.assertNotIn('mejor, igual o peor', text)
+        for _ in range(8):
+            self.say('nada más')
+        asked = self.collected()['asked']
+        self.assertEqual(len(asked), len(set(asked)))
+        self.assertLessEqual(len(asked), assistant.MAX_QUESTIONS_PER_DAY)
+        # Agotadas las preguntas, el asistente cierra con calidez en lugar de seguir preguntando.
+        self.assertEqual(self.questions()[-1], assistant.CLOSING)
+
+    def test_repeated_symptoms_are_not_duplicated(self):
+        self.say('me sangra la encía')
+        self.say('me sigue sangrando la encía')
+        entities = PatientReport.objects.get().extracted_entities
+        keys = [(item['label'], item.get('category'), item.get('negated')) for item in entities]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_a_new_day_starts_a_new_conversation_and_followup(self):
+        self.say('me duele un poco')
+        yesterday = timezone.now() - timedelta(days=1)
+        AssistantConversation.objects.update(created_at=yesterday)
+        PatientReport.objects.update(created_at=yesterday)
+        self.say('hoy estoy mejor')
+        self.assertEqual(AssistantConversation.objects.count(), 2)
+        self.assertEqual(PatientReport.objects.count(), 2)
+        # La pregunta del dolor vuelve a hacerse un día nuevo.
+        self.assertIn('Del 0 al 10', self.questions()[-1])
+
+    def test_the_doctor_is_alerted_once_when_the_level_rises_to_red(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            self.say('me molesta un poco el alambre')
+        self.assertFalse(ClinicalSummary.objects.exists())
+        with self.captureOnCommitCallbacks(execute=True):
+            self.say('ahora no puedo respirar bien')
+        with self.captureOnCommitCallbacks(execute=True):
+            self.say('sigo sin poder respirar bien')
+        report = PatientReport.objects.get()
+        self.assertEqual(report.risk_level, 'Alto')
+        self.assertTrue(report.doctor_notified)
+        self.assertEqual(ClinicalSummary.objects.count(), 1)
 
     def test_numbers_that_are_not_pain_are_ignored(self):
-        self.assertIsNone(self.say('tengo 2 llagas').data['conversation']['collected']['pain_level'])
+        self.say('tengo 2 llagas')
+        self.assertIsNone(self.collected().get('pain_level'))
         self.assertEqual(assistant.parse_pain('me duele como un 7'), 7)
         self.assertEqual(assistant.parse_pain('6/10'), 6)
 
     def test_chips_send_pain_and_comparison_directly(self):
-        response = self.say('', pain_level=3, comparison='lower')
-        collected = response.data['conversation']['collected']
+        self.say('', pain_level=3, comparison='lower')
+        collected = self.collected()
         self.assertEqual((collected['pain_level'], collected['comparison']), (3, 'lower'))
-
-    def test_cannot_submit_without_pain_and_comparison(self):
-        conversation = self.say('me duele un poco').data['conversation']['id']
-        response = self.client.post('/api/assistant/submit/', {'conversation': conversation}, format='json')
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(PatientReport.objects.get().pain_level, 3)
 
     def test_roles_and_preconditions(self):
         self.login(self.doctor)
         self.assertEqual(self.client.post('/api/assistant/messages/', {'text': 'hola'}, format='json').status_code, 403)
+        self.assertEqual(self.client.post('/api/assistant/submit/', {}, format='json').status_code, 404)
+        # Tras el alta sí puede escribir (para pedir una cita); sin ningún tratamiento, no.
         TreatmentPlan.objects.update(is_active=False)
-        self.assertEqual(self.say('hola').status_code, 400)
+        self.assertEqual(self.say('hola').status_code, 201)
         self.assertEqual(self.say('x' * 1001).status_code, 400)
+        TreatmentPlan.objects.all().delete()
+        self.assertEqual(self.say('hola').status_code, 400)
 
     def test_the_open_conversation_is_restored(self):
         self.say('me duele un poco')
@@ -235,15 +288,51 @@ class AssistantLocalTests(AIFixture):
         self.assertFalse(current['ai_enabled'])
 
 
+class GroundedAnswerTests(AIFixture):
+    """Ante dudas de qué hacer, el asistente solo cita lo que escribió el odontólogo."""
+
+    def say(self, text):
+        self.login(self.patient)
+        return self.client.post('/api/assistant/messages/', {'text': text}, format='json')
+
+    def test_doubts_are_answered_quoting_the_dentist(self):
+        reply = self.say('¿Puedo comer alimentos duros?').data['message']['text']
+        self.assertEqual(reply, 'Según las indicaciones de tu odontólogo: «No comas alimentos duros». '
+                                'Si la molestia persiste o aumenta, comunícate con la clínica al 04 270 0000.')
+
+    def test_without_an_answer_in_the_instructions_it_refers_to_the_dentist(self):
+        reply = self.say('¿Puedo tomar ibuprofeno?').data['message']['text']
+        self.assertEqual(reply, ASK_DOCTOR)
+
+    def test_the_model_only_picks_a_fragment_and_cannot_invent_one(self):
+        from .ai.explain import GroundedAnswer
+        cases = (
+            ('No comas alimentos duros', 'llm', '«No comas alimentos duros»'),
+            # Una «cita» que el odontólogo no escribió se descarta: decide la búsqueda local.
+            ('Toma ibuprofeno 600 mg cada 6 horas', 'local', ASK_DOCTOR),
+        )
+        for quote, source, expected in cases:
+            with self.subTest(quote=quote):
+                fake = FakeClient(output=GroundedAnswer(cita=quote))
+                with override_settings(**LLM_ON), patch('medical_monitor.ai.client.get_client', return_value=fake):
+                    response = self.say('¿Qué hago si me duele al masticar?')
+                self.assertEqual(response.data['source'], source)
+                self.assertIn(expected, response.data['message']['text'])
+                self.assertNotIn('ibuprofeno', response.data['message']['text'])
+
+
 class AssistantLLMTests(AIFixture):
     def llm_turn(self, **fields):
         defaults = {'respuesta': 'Entiendo.', 'pregunta': '¿Algo más?', 'dolor_eva': None, 'comparacion': None,
-                    'sintomas': [], 'cuidados': [], 'listo_para_enviar': False}
+                    'sintomas': [], 'cuidados': []}
         return assistant.AssistantTurn(**{**defaults, **fields})
+
+    def collected(self):
+        return AssistantConversation.objects.get(is_open=True).collected
 
     def test_the_llm_writes_the_reply_but_never_the_triage(self):
         turn = self.llm_turn(
-            respuesta='Gracias, Kevin.', pregunta=None, dolor_eva=2, comparacion='lower', listo_para_enviar=True,
+            respuesta='Gracias, Kevin.', pregunta=None, dolor_eva=2, comparacion='lower',
             # El modelo «cree» ver un signo de alarma que el paciente no escribió.
             sintomas=[assistant.ExtractedSymptom(categoria='Dificultad para tragar o respirar')],
         )
@@ -252,13 +341,11 @@ class AssistantLLMTests(AIFixture):
             self.login(self.patient)
             response = self.client.post('/api/assistant/messages/', {'text': 'Estoy mejor, un 2 de dolor'}, format='json')
             self.assertEqual(response.data['source'], 'llm')
-            self.assertTrue(response.data['ready_to_submit'])
-            sent = self.client.post('/api/assistant/submit/', {'conversation': response.data['conversation']['id']},
-                                    format='json')
         # El nivel lo decide el PLN local sobre el texto del paciente: verde.
-        self.assertEqual(sent.data['alert_color'], 'verde')
+        report = PatientReport.objects.get()
+        self.assertEqual((report.risk_level, report.pain_level), ('Bajo', 2))
         # Lo que entendió el modelo queda registrado para compararlo con el PLN local.
-        llm_view = PatientReport.objects.get().conversation.messages.filter(source='llm').get().extracted['llm']
+        llm_view = report.conversation.messages.filter(source='llm').get().extracted['llm']
         self.assertEqual(llm_view['sintomas'][0]['categoria'], 'Dificultad para tragar o respirar')
 
     def test_what_reaches_the_model_is_anonymized(self):
@@ -271,13 +358,24 @@ class AssistantLLMTests(AIFixture):
             self.assertNotIn(leaked, sent)
         # El catálogo de protocolos va en el prompt de sistema (estable, aprovecha la caché implícita).
         self.assertIn('ORT-001', fake.calls[0]['config'].system_instruction)
+        self.assertNotIn('enviar', fake.calls[0]['config'].system_instruction.split('Catálogo de protocolos')[0].lower())
 
     def test_pain_from_the_model_is_only_accepted_if_the_patient_wrote_it(self):
         fake = FakeClient(output=self.llm_turn(dolor_eva=9))
         with override_settings(**LLM_ON), patch('medical_monitor.ai.client.get_client', return_value=fake):
             self.login(self.patient)
-            response = self.client.post('/api/assistant/messages/', {'text': 'me molesta el alambre'}, format='json')
-        self.assertIsNone(response.data['conversation']['collected']['pain_level'])
+            self.client.post('/api/assistant/messages/', {'text': 'me molesta el alambre'}, format='json')
+        self.assertIsNone(self.collected().get('pain_level'))
+
+    def test_the_model_cannot_repeat_a_question(self):
+        fake = FakeClient(output=self.llm_turn(pregunta=assistant.PAIN_QUESTION))
+        with override_settings(**LLM_ON), patch('medical_monitor.ai.client.get_client', return_value=fake):
+            self.login(self.patient)
+            first = self.client.post('/api/assistant/messages/', {'text': 'me molesta el alambre'}, format='json')
+            second = self.client.post('/api/assistant/messages/', {'text': 'no sé'}, format='json')
+        self.assertIn('Del 0 al 10', first.data['message']['text'])
+        self.assertNotIn('Del 0 al 10', second.data['message']['text'])
+        self.assertEqual(self.collected()['asked'].count(assistant.PAIN_QUESTION), 1)
 
     def test_if_the_model_fails_the_conversation_goes_on(self):
         request = httpx.Request('POST', 'https://generativelanguage.googleapis.com/v1beta/models')
@@ -408,10 +506,10 @@ class SummaryTests(AIFixture):
         self.login(self.patient)
         # El resumen se prepara al confirmar la transacción, fuera de la respuesta al paciente.
         with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.post('/api/patient-reports/', {
+            self.client.post('/api/patient-reports/', {
                 'pain_level': 9, 'comparison': 'higher', 'message': 'no puedo respirar bien',
             }, format='json')
-        self.assertEqual(response.data['alert_color'], 'rojo')
+        self.assertEqual(PatientReport.objects.get().risk_level, 'Alto')
         self.assertEqual(ClinicalSummary.objects.filter(treatment_plan=self.plan).count(), 1)
 
 
@@ -464,3 +562,38 @@ class MetricsTests(AIFixture):
         self.login(self.doctor)
         self.assertEqual(self.client.get('/api/ai/metrics/').status_code, 403)
         self.assertEqual(self.client.get('/api/ai/status/').data, {'enabled': False, 'model': None})
+
+
+class NaturalConversationTests(AIFixture):
+    """Sin IA, el asistente responde a lo que el paciente cuenta antes de preguntar."""
+
+    def say(self, text):
+        self.login(self.patient)
+        return self.client.post('/api/assistant/messages/', {'text': text}, format='json').data['message']['text']
+
+    def test_taking_the_medication_is_acknowledged_without_questions(self):
+        reply = self.say('Ya me tomé la pastilla de la mañana')
+        self.assertIn('Muy bien que tomaste tu medicación', reply)
+        self.assertIn('Cuéntame más tarde', reply)
+        self.assertNotIn('Del 0 al 10', reply)
+        self.assertTrue(AssistantConversation.objects.get().collected['care']['Medicación'])
+        # Un relato no se trata como una pregunta sobre las indicaciones.
+        self.assertNotIn('Según las indicaciones', reply)
+
+    def test_greetings_and_thanks_are_answered_briefly(self):
+        self.assertIn('¿Cómo te sientes hoy', self.say('Hola, buenos días'))
+        reply = self.say('gracias')
+        self.assertIn('Con gusto', reply)
+        self.assertNotIn('?', reply)
+
+    def test_a_symptom_gets_empathy_and_one_question_without_naming_the_triage(self):
+        reply = self.say('Tengo fiebre desde ayer')
+        self.assertIn('Lamento', reply)
+        self.assertEqual(reply.count('?'), 1)
+        for hidden in ('Fiebre', 'alerta', 'riesgo'):
+            self.assertNotIn(hidden, reply)
+
+    def test_real_questions_still_quote_the_dentist(self):
+        self.assertTrue(assistant.wants_instructions('¿Qué hago si me duele?'))
+        self.assertTrue(assistant.wants_instructions('puedo comer pan'))
+        self.assertFalse(assistant.wants_instructions('ya me tomé lo que me tomo siempre'))

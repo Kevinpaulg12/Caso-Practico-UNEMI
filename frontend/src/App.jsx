@@ -6,6 +6,7 @@ import RoleRoute from './components/RoleRoute';
 import Loading, { SkeletonCard } from './components/Skeleton';
 import Home from './pages/Home';
 import Login from './pages/Login';
+import { IconArrowLeft, IconTooth } from './components/Icons';
 
 // Cada pantalla se descarga solo cuando se visita: quien entra como paciente no baja el panel del
 // odontólogo ni el del administrador. Inicio y Login van en el paquete inicial para pintar de inmediato.
@@ -13,6 +14,8 @@ const Prescriptions = lazy(() => import('./pages/Prescriptions'));
 const DoctorDashboard = lazy(() => import('./pages/DoctorDashboard'));
 const NewConsultation = lazy(() => import('./pages/NewConsultation'));
 const TreatmentHistory = lazy(() => import('./pages/TreatmentHistory'));
+const ClinicalHistory = lazy(() => import('./pages/ClinicalHistory'));
+const DoctorSchedule = lazy(() => import('./pages/DoctorSchedule'));
 const AdminAI = lazy(() => import('./pages/AdminAI'));
 const Discharges = lazy(() => import('./pages/Discharges'));
 const Reports = lazy(() => import('./pages/Reports'));
@@ -38,11 +41,11 @@ function NotFound() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-[#f7f9fe] p-6 text-center">
       <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <span aria-hidden="true" className="text-4xl">🦷</span>
+        <IconTooth className="mx-auto h-10 w-10 text-blue-600" />
         <h1 className="mt-4 text-2xl font-bold text-slate-800">404 - Página no encontrada</h1>
         <p className="mt-2 text-sm text-slate-500">La ruta solicitada no existe o fue movida.</p>
-        <Link to="/" className="mt-5 inline-block rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700">
-          Volver al inicio
+        <Link to="/" className="inline-flex items-center gap-1.5 mt-5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700">
+          <IconArrowLeft className="h-3.5 w-3.5 shrink-0" />Volver al inicio
         </Link>
       </section>
     </main>
@@ -67,15 +70,19 @@ export default function App() {
             <Route path="/panel-paciente" element={<RoleRoute role="PAT"><Prescriptions /></RoleRoute>} />
 
             {/* Odontólogo */}
-            <Route path="/panel-doctor" element={doctor(<DoctorDashboard />)} />
+            {/* «Pacientes activos» pasó a llamarse Monitoreo; la ruta antigua lleva a la nueva. */}
+            <Route path="/panel-doctor" element={<Navigate to="/panel-doctor/monitoreo" replace />} />
+            <Route path="/panel-doctor/monitoreo" element={doctor(<DoctorDashboard />)} />
             <Route path="/panel-doctor/consulta-medica" element={doctor(<NewConsultation />)} />
             {/* El registro de pacientes vive ahora dentro de Consulta médica. */}
             <Route path="/panel-doctor/nueva-consulta" element={<Navigate to="/panel-doctor/consulta-medica" replace />} />
             <Route path="/panel-doctor/nuevo-paciente" element={<Navigate to="/panel-doctor/consulta-medica?registro=1" replace />} />
             <Route path="/panel-doctor/tratamientos/:planId" element={doctor(<TreatmentHistory />)} />
-            {/* La agenda se retiró: los controles se registran desde la consulta y el historial. */}
-            <Route path="/panel-doctor/agenda" element={<Navigate to="/panel-doctor" replace />} />
+            <Route path="/panel-doctor/pacientes/:patientId/historia" element={doctor(<ClinicalHistory />)} />
+            {/* La agenda antigua es ahora «Mi horario»: el paciente reserva los turnos libres en el chat. */}
+            <Route path="/panel-doctor/agenda" element={<Navigate to="/panel-doctor/horario" replace />} />
             <Route path="/panel-doctor/historial" element={doctor(<Discharges />)} />
+            <Route path="/panel-doctor/horario" element={doctor(<DoctorSchedule />)} />
             <Route path="/panel-doctor/informes" element={doctor(<Reports />)} />
 
             {/* Administrador */}

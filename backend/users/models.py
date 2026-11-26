@@ -6,7 +6,8 @@ from django.db import models
 # 2026-11-ia: añade el tratamiento de datos anonimizados por un proveedor de IA.
 # 2026-11-gemini: el proveedor de IA pasa a ser Google (Gemini).
 # 2026-11-edad: la IA recibe la edad en años (antes, un rango de edad).
-TERMS_VERSION = '2026-11-edad'
+# 2026-11-historia: los odontólogos de la clínica comparten la historia clínica del paciente.
+TERMS_VERSION = '2026-11-historia'
 
 
 def title_case_name(value):
@@ -58,9 +59,11 @@ class User(AbstractUser):
 
 
 def patients_of(doctor):
-    """Pacientes que un odontólogo tiene asignados o a quienes ha recetado."""
+    """Pacientes que un odontólogo tiene asignados, a quienes ha recetado o que reservaron cita con él."""
     return User.objects.filter(
-        models.Q(profile__primary_doctor=doctor) | models.Q(prescriptions_received__doctor=doctor),
+        models.Q(profile__primary_doctor=doctor)
+        | models.Q(prescriptions_received__doctor=doctor)
+        | models.Q(appointment_requests__doctor=doctor, appointment_requests__status__in=('booked', 'attended')),
         role=User.Roles.PATIENT,
     ).distinct()
 
@@ -82,6 +85,9 @@ class UserProfile(models.Model):
     national_id = models.CharField(max_length=20, unique=True, null=True, blank=True)
     phone = models.CharField(max_length=30, blank=True)
     emergency_contact = models.CharField(max_length=30, blank=True)
+    # Envío de las credenciales temporales por correo: cuándo salió y, si falló, por qué.
+    credentials_sent_at = models.DateTimeField(null=True, blank=True)
+    credentials_error = models.CharField(max_length=200, blank=True)
 
     def __str__(self):
         return f'Perfil de {self.user.username}'

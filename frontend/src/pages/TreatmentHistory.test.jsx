@@ -63,36 +63,65 @@ describe('Historial del tratamiento', () => {
     expect(timelineItems()).toHaveLength(2);
   });
 
-  it('edita el tratamiento enviando solo lo que cambió', async () => {
+  it('edita el medicamento recetado enviando la receta como lista', async () => {
     api.patch.mockResolvedValue({ data: {} });
     const { container } = render('/panel-doctor/tratamientos/8?editar=1');
     await screen.findByText('Editar tratamiento en curso');
+    // El medicamento vigente aparece plegado, con editar y eliminar.
+    const card = screen.getByRole('region', { name: 'Medicamento 1' });
+    expect(card).toHaveTextContent('Paracetamol 500 mg');
+    fireEvent.click(within(card).getByRole('button', { name: 'Editar el medicamento 1: Paracetamol' }));
     fireEvent.change(container.querySelector('[name=frequency]'), { target: { value: 'Cada 6 horas' } });
-    fireEvent.change(container.querySelector('[name=duration]'), { target: { value: '5 días' } });
+    fireEvent.change(container.querySelector('[name=duration]'), { target: { value: '5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
-    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/treatment-plans/8/', { frequency: 'Cada 6 horas', duration: '5 días' }));
-    expect(await screen.findByRole('status')).toHaveTextContent('se emitió una receta nueva');
-    await waitFor(() => expect(screen.queryByText('Editar tratamiento en curso')).toBeNull());
+    await waitFor(() => expect(api.patch).toHaveBeenCalled());
+    const [url, body] = api.patch.mock.calls[0];
+    expect(url).toBe('/treatment-plans/8/');
+    expect(Object.keys(body)).toEqual(['medications']);
+    expect(body.medications).toHaveLength(1);
+    expect(body.medications[0]).toMatchObject({ medication_name: 'Paracetamol', strength: '500 mg', frequency: 'Cada 6 horas', duration: '5 días' });
+    expect(await screen.findByRole('status')).toHaveTextContent('se emitió la receta nueva');
+    await waitFor(() => expect(screen.queryByText('Editar tratamiento en curso')).toBeNull(), { timeout: 4000 });
   });
 
-  it('valida la edición antes de enviarla', async () => {
+  it('añade otro medicamento al tratamiento en curso', async () => {
+    api.patch.mockResolvedValue({ data: {} });
     const { container } = render('/panel-doctor/tratamientos/8?editar=1');
     await screen.findByText('Editar tratamiento en curso');
-    fireEvent.change(container.querySelector('[name=duration]'), { target: { value: 'mucho' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Añadir otro medicamento' }));
+    const second = screen.getByRole('region', { name: 'Medicamento 2' });
+    fireEvent.change(within(second).getByLabelText('Medicamento'), { target: { value: 'Ibuprofeno' } });
+    const set = (name, value) => fireEvent.change(container.querySelector(`[name=${name}]`), { target: { value } });
+    set('active_ingredient', 'Ibuprofeno');
+    set('strength', '400 mg');
+    set('dosage_form', 'Tableta');
+    set('frequency', 'Cada 8 horas');
+    set('duration', '3');
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => expect(api.patch).toHaveBeenCalled());
+    expect(api.patch.mock.calls[0][1].medications.map((item) => item.medication_name)).toEqual(['Paracetamol', 'Ibuprofeno']);
+  });
+
+  it('sin cambios en la medicación no la envía; valida antes de enviar', async () => {
+    const { container } = render('/panel-doctor/tratamientos/8?editar=1');
+    await screen.findByText('Editar tratamiento en curso');
+    fireEvent.click(screen.getByRole('button', { name: 'Añadir otro medicamento' }));
+    fireEvent.change(within(screen.getByRole('region', { name: 'Medicamento 2' })).getByLabelText('Medicamento'), { target: { value: 'Ibuprofeno' } });
     fireEvent.change(container.querySelector('[name=instructions]'), { target: { value: 'corto' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
-    expect(screen.getByText(/formato como «5 días»/)).toBeInTheDocument();
     expect(screen.getByText(/entre 10 y 1000 caracteres/)).toBeInTheDocument();
+    expect(screen.getByText('Selecciona una concentración.', { selector: 'span' })).toBeInTheDocument();
     expect(api.patch).not.toHaveBeenCalled();
   });
 
-  it('muestra los errores del servidor junto a su campo', async () => {
-    api.patch.mockRejectedValue({ response: { data: { medication_name: ['Indica un medicamento válido.'] } } });
+  it('muestra los errores del servidor en el medicamento', async () => {
+    api.patch.mockRejectedValue({ response: { data: { medications: [{ strength: ['Indica la concentración.'] }] } } });
     const { container } = render('/panel-doctor/tratamientos/8?editar=1');
     await screen.findByText('Editar tratamiento en curso');
-    fireEvent.change(container.querySelector('[name=medication_name]'), { target: { value: 'Ibuprofeno' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Editar el medicamento 1: Paracetamol' }));
+    fireEvent.change(container.querySelector('[name=frequency]'), { target: { value: 'Cada 6 horas' } });
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
-    expect(await screen.findByText('Indica un medicamento válido.')).toBeInTheDocument();
+    expect(await screen.findByText('Indica la concentración.')).toBeInTheDocument();
   });
 
   it('un tratamiento cerrado no se puede editar', async () => {
@@ -179,23 +208,30 @@ describe('Historial: fases, controles y cuidados', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Control registrado. El paciente recibirá el aviso para volver el martes, 15 de diciembre.');
     const [url, body] = api.post.mock.calls[0];
     expect(url).toBe('/treatment-plans/8/controls/');
-    expect(body).toMatchObject({ clinical_data: { higiene: 'Regular' }, notes: 'Cambio de arco', next_control_in_days: 28, prescribes_medication: false });
+    expect(body).toMatchObject({ clinical_data: { higiene: 'Regular' }, notes: 'Cambio de arco', next_control_in_days: 28, prescribes_medication: false, advance_phase: false });
     expect(body).not.toHaveProperty('medication_name');
   });
 
-  it('avanza a la siguiente fase', async () => {
-    api.post.mockResolvedValue({ data: { current_phase: { name: 'Retención' } } });
+  it('la fase avanza al registrar el control que la cierra, no con un botón aparte', async () => {
+    api.post.mockResolvedValue({ data: { control: { id: 1 }, treatment: longPlan } });
     render();
-    fireEvent.click(await screen.findByRole('button', { name: 'Pasar a la siguiente fase' }));
-    expect(await screen.findByRole('status')).toHaveTextContent('Fase actual: Retención');
-    expect(api.post).toHaveBeenCalledWith('/treatment-plans/8/advance-phase/');
+    await screen.findByText('Fases del tratamiento');
+    expect(screen.queryByRole('button', { name: /siguiente fase/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar control' }));
+    fireEvent.change(screen.getByLabelText(/^Higiene oral/), { target: { value: 'Buena' } });
+    fireEvent.click(screen.getByLabelText(/Este control completa la fase «Alineación» e inicia «Retención»/));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar control' }));
+    await waitFor(() => expect(api.post).toHaveBeenCalled());
+    const [url, body] = api.post.mock.calls[0];
+    expect(url).toBe('/treatment-plans/8/controls/');
+    expect(body.advance_phase).toBe(true);
   });
 
   it('edita las piezas tratadas', async () => {
     api.patch.mockResolvedValue({ data: {} });
     render('/panel-doctor/tratamientos/8?editar=1');
     await screen.findByText('Editar tratamiento en curso');
-    fireEvent.click(screen.getAllByRole('button', { name: /^11:/ })[0]);
+    fireEvent.click(screen.getAllByRole('checkbox', { name: /^11:/ })[0]);
     fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/treatment-plans/8/', { teeth: [11, 13, 23] }));
   });

@@ -65,6 +65,64 @@ select {
   }
 }
 
+/*
+ * Movimiento común de los tres portales (paciente, odontólogo y administrador). Todo usa la curva y
+ * la escala del menú de la cuenta: aparece desde un poco más arriba, crece apenas y se asienta.
+ */
+@keyframes ds-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ds-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* La campana se mueve una vez cuando llega algo nuevo. */
+@keyframes bell-ring {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(14deg); }
+  30% { transform: rotate(-12deg); }
+  45% { transform: rotate(8deg); }
+  60% { transform: rotate(-5deg); }
+  75% { transform: rotate(2deg); }
+}
+
+/* Menús, ventanas flotantes y modales: igual que el menú de la cuenta. */
+.ds-pop {
+  animation: account-menu-in 160ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+
+.ds-fade {
+  animation: ds-fade 160ms ease-out backwards;
+}
+
+/* Contenido de una pantalla o sección al abrirse (también al pasar de oculta a visible). */
+.ds-enter {
+  animation: ds-enter 240ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+
+/* Los bloques de la pantalla entran uno tras otro, como las opciones de un menú. */
+.ds-stagger > * {
+  animation: ds-enter 240ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+.ds-stagger > *:nth-child(2) { animation-delay: 40ms; }
+.ds-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.ds-stagger > *:nth-child(4) { animation-delay: 120ms; }
+.ds-stagger > *:nth-child(n + 5) { animation-delay: 160ms; }
+
+/* Lo que se despliega dentro de un <details> entra igual que el menú. */
+details[open] > :not(summary) {
+  animation: account-menu-in 160ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+
 /* Las utilidades text-xs anulan los 16px de arriba; en móvil iOS haría zoom al enfocar. */
 @media (max-width: 640px) {
   input,

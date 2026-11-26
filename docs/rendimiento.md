@@ -7,17 +7,17 @@ El proyecto no almacena imágenes (por costo), así que las prácticas sobre im�
 
 | Práctica | Qué se hizo | Dónde |
 |---|---|---|
-| Esqueletos de carga | Bloques grises con la forma del contenido en el portal del paciente, el panel del odontólogo, la agenda, el historial, la cuenta y el cambio de página. Los lectores de pantalla oyen «Cargando…». | `frontend/src/components/Skeleton.jsx` |
+| Esqueletos de carga | Bloques grises con la forma del contenido en el portal del paciente, el panel del odontólogo, la historia clínica, el historial, la cuenta y el cambio de página. Los lectores de pantalla oyen «Cargando…». | `frontend/src/components/Skeleton.jsx` |
 | Evitar llamadas duplicadas | El menú ya no pide `/me/` en cada pantalla ni el portal pide `/account/`: usan el perfil que cargó la sesión. | `PanelLayout.jsx`, `Prescriptions.jsx` |
 | Debounce en búsqueda y autocompletado | El buscador de pacientes de Consulta médica espera 300 ms y cancela la petición anterior. Los demás buscadores y el autocompletado de medicamentos ya esperaban 250–350 ms. | `hooks/useDebouncedValue.js`, `NewConsultation.jsx` |
 | Paginar la API | Todos los listados van paginados (10 por página). El cliente puede pedir hasta 100 con `?page_size=`, con tope en el servidor. | `backend/core/pagination.py`, `services/pagination.js` |
 | Consultas N+1 | `/api/treatment-plans/` pasaba de 22 consultas con 5 tratamientos (crecía con cada uno) a 5 fijas. Una prueba falla si un listado supera 6 consultas. | `medical_monitor/views.py`, `tests_performance.py` |
 | Pedir solo lo necesario | Los listados cargan sus relaciones en bloque (`select_related`, `prefetch_related`) en vez de una consulta por fila. | `views.py`, `users/views.py` |
-| Índices | Índices compuestos para las consultas más repetidas: reportes y tratamientos por paciente, recetas, agenda y métricas de IA. | migración `0017_performance_indexes` |
+| Índices | Índices compuestos para las consultas más repetidas: reportes y tratamientos por paciente, recetas, controles, solicitudes de cita y métricas de IA. | migración `0017_performance_indexes` |
 | Compresión | El backend comprime con Gzip las respuestas JSON. En producción, nginx sirve los estáticos comprimidos. | `settings.py` (GZipMiddleware), `frontend/nginx.conf` |
 | Caché con Redis | Los catálogos (protocolos, guías de medicación y umbrales de alerta) se guardan en caché y se descartan al editarlos. Usa Redis si existe `CACHE_URL`; si no, la memoria del proceso. | `medical_monitor/caching.py` |
 | Conexiones a la base de datos | Las conexiones se reutilizan entre peticiones (`CONN_MAX_AGE=60`) y se comprueban antes de usarse. | `settings.py` |
-| Timeout en APIs externas | Gemini: 20 s. Catálogo externo de medicamentos: 4 s. Correo: 10 s. Redis: 1 s. Si se agota el tiempo, el sistema sigue con su alternativa local. | `ai/client.py`, `services.py`, `settings.py` |
+| Timeout en APIs externas | Gemini: 20 s. CIMA y RxNav: 4 s (solo si el vademécum local no tiene el fármaco; las búsquedas de CIMA se guardan 24 h). Correo: 10 s. Redis: 1 s. Si se agota el tiempo, el sistema sigue con su alternativa local. | `ai/client.py`, `services.py`, `settings.py` |
 | Respuesta de la IA en vivo | El asistente muestra la respuesta mientras el modelo la escribe (Server-Sent Events). Si la transmisión falla, usa la petición normal. | `AssistantStreamView`, `services/assistantStream.js` |
 | Interfaz optimista | El mensaje del paciente aparece en el chat al instante y se retira si el envío falla. | `ConversationalAssistant.jsx` |
 | Peticiones en paralelo | El portal del paciente lanza sus cuatro cargas a la vez. | `Prescriptions.jsx` |
@@ -65,11 +65,12 @@ Medido con la clave del proyecto:
 
 | Modelo | Primer texto visible | Respuesta completa |
 |---|---|---|
-| `gemini-4-hydrogen` (configurado) | 3,5 s | 3–5 s |
-| `gemini-3.5-flash-lite` | 1,6 s | 1,7 s |
+| `gemini-3.5-flash-lite` (configurado) | 1,6 s | 1,7 s |
+| `gemini-4-hydrogen` | 3,5 s | 3–5 s |
+| `gemini-2.5-flash` | — | No disponible para claves nuevas (404) |
 
-`gemini-4-hydrogen` razona antes de escribir, por eso la transmisión en vivo le gana poco tiempo. Para un
-asistente más ágil basta con poner `AI_MODEL=gemini-3.5-flash-lite` en `.env` y recrear el backend.
+El asistente usa `gemini-3.5-flash-lite` porque conversa en tiempo real. `gemini-4-hydrogen` razona antes de
+escribir y tarda el doble; se puede volver a él con `AI_MODEL` en `.env` y recreando el backend.
 
 ## Cómo comprobarlo
 

@@ -1,5 +1,4 @@
 import { formatLongDate } from '../../services/consultationRules';
-import { IconCheckCircle } from '../Icons';
 
 // Controles de formulario compartidos por la consulta y el control.
 const inputClass = (error) => `mt-1 w-full rounded-xl border ${error ? 'border-rose-400' : 'border-slate-200'} bg-white p-3 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100`;
@@ -51,23 +50,6 @@ export function CheckField({ label, hint, ...props }) {
         {hint && <span className="mt-0.5 block text-[11px] font-normal text-slate-500">{hint}</span>}
       </span>
     </label>
-  );
-}
-
-// Bloque numerado del registro. Un bloque desactivado conserva sus datos, pero no se puede editar.
-export function Step({ number, title, description, done, disabled = false, children }) {
-  return (
-    <fieldset disabled={disabled} aria-describedby={`step-${number}-help`} className={`min-w-0 rounded-2xl border p-4 transition-opacity ${disabled ? 'border-dashed border-slate-200 bg-slate-50/60 opacity-60' : 'border-slate-200 bg-white'}`}>
-      <legend className="sr-only">{`${number}. ${title}`}</legend>
-      <div className="mb-3 flex items-start gap-3">
-        <span aria-hidden="true" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${done ? 'bg-emerald-600 text-white' : disabled ? 'bg-slate-200 text-slate-500' : 'bg-blue-600 text-white'}`}>
-          {done ? <IconCheckCircle className="h-4 w-4" /> : number}
-        </span>
-        <h3 className="min-w-0 pt-1 text-sm font-black text-slate-900">{title}</h3>
-      </div>
-      <p id={`step-${number}-help`} className="-mt-2 mb-3 pl-10 text-[11px] text-slate-500">{description}</p>
-      {children}
-    </fieldset>
   );
 }
 

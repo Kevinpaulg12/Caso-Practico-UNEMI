@@ -47,6 +47,7 @@ def plan_facts(plan):
         'checkins': len(checkins),
         'next_control': next_control_payload(plan),
         'controls': list(plan.controls.order_by('date', 'id')),
+        'appointment_requests': list(plan.appointment_requests.filter(status='booked', starts_at__gte=timezone.now()).order_by('starts_at')),
         'symptoms': symptoms,
     }
 
@@ -59,18 +60,23 @@ def _masked(items, plan):
 def local_summary(plan, facts):
     reports = facts['reports']
     if not reports:
-        overview = 'El paciente aún no ha enviado autorreportes en este tratamiento.'
+        overview = 'El paciente aún no ha contado cómo se siente en este tratamiento.'
         changes = []
     else:
-        first, last = reports[0], reports[-1]
-        trend = ('disminuye' if last.pain_level < first.pain_level
-                 else 'aumenta' if last.pain_level > first.pain_level else 'se mantiene')
+        last = reports[-1]
+        day = last.postoperative_day if last.postoperative_day is not None else '—'
+        with_pain = [report for report in reports if report.pain_level is not None]
+        if with_pain:
+            first_pain, last_pain = with_pain[0].pain_level, with_pain[-1].pain_level
+            trend = 'disminuye' if last_pain < first_pain else 'aumenta' if last_pain > first_pain else 'se mantiene'
+            pain = f'El dolor {trend} (EVA {first_pain} → {last_pain}); '
+        else:
+            pain = 'El paciente no ha indicado su nivel de dolor; '
         overview = (
-            f'{len(reports)} autorreportes desde el inicio. El dolor {trend} '
-            f'(EVA {first.pain_level} → {last.pain_level}); último nivel {LEVEL_LABEL[last.risk_level]} '
-            f'en el día {last.postoperative_day if last.postoperative_day is not None else "—"} de seguimiento.'
+            f'{len(reports)} día(s) con seguimiento desde el inicio. {pain}'
+            f'último nivel {LEVEL_LABEL[last.risk_level]} en el día {day} de seguimiento.'
         )
-        changes = [f'{category}: mencionado en {count} reporte(s)' for category, count in facts['symptoms'].most_common(4)]
+        changes = [f'{category}: mencionado en {count} día(s)' for category, count in facts['symptoms'].most_common(4)]
     alerts = list(dict.fromkeys(
         reason for report in reports[-5:] if report.risk_level != 'Bajo' for reason in report.alert_reasons
     ))
@@ -84,6 +90,9 @@ def local_summary(plan, facts):
     if facts['adherence'] is not None and facts['adherence'] < 70:
         review.append('Reforzar las indicaciones de cuidado en casa.')
     control = facts['next_control']
+    if facts['appointment_requests']:
+        days = (timezone.localtime(facts['appointment_requests'][0].starts_at).date() - timezone.localdate()).days
+        review.append(f'El paciente reservó una cita: {"hoy" if days == 0 else f"en {days} día(s)"}.')
     if control and control['overdue']:
         review.append(f'El control está atrasado {-control["days_left"]} día(s): el paciente no ha vuelto a consulta.')
     return SummaryOutput(resumen=overview, cambios_recientes=changes, alertas=alerts,
@@ -94,18 +103,23 @@ def llm_summary(plan, facts):
     reports = facts['reports'][-15:]
     payload = {
         'contexto_del_tratamiento': plan_context(plan),
-        'autorreportes': [
+        # Un registro por día con todo lo que el paciente contó en la conversación, ya enmascarado.
+        'seguimiento_diario': [
             {
                 'dia': report.postoperative_day,
                 'eva': report.pain_level,
                 'comparacion': report.comparison,
                 'nivel_calculado_por_el_sistema': LEVEL_LABEL[report.risk_level],
                 'motivos': report.alert_reasons,
-                'texto_del_paciente': mask(report.message, plan.patient)[:400],
+                'lo_que_conto_el_paciente': mask(report.message, plan.patient)[:600],
             }
             for report in reports
         ],
         'adherencia_ultimos_7_dias_pct': facts['adherence'],
+        'citas_reservadas': [
+            {'en_dias': (timezone.localtime(item.starts_at).date() - timezone.localdate()).days, 'motivo': mask(item.reason, plan.patient)}
+            for item in facts['appointment_requests']
+        ],
         # Negativo = el paciente lleva esos días de atraso; nulo = no tiene un control pendiente.
         'proximo_control_en_dias': facts['next_control']['days_left'] if facts['next_control'] else None,
         'datos_del_tratamiento': _masked(display_clinical_data(plan.clinical_procedure, plan.clinical_data), plan),

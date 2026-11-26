@@ -5,7 +5,7 @@ from datetime import datetime, time
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from .models import Prescription, TreatmentChange
+from .models import Prescription, TreatmentChange, TreatmentPhase
 from .services import analyze_medical_text
 
 MEDICATION_FIELDS = ('medication_name', 'strength', 'dosage_form', 'frequency', 'duration')
@@ -22,6 +22,7 @@ SHORT_FIELDS = {
 }
 LONG_FIELDS = {
     'instructions': 'Indicaciones actualizadas',
+    'diet_instructions': 'Dieta actualizada',
     'side_effects': 'Efectos a observar actualizados',
     'clinical_notes': 'Notas clínicas actualizadas',
     'admission_reason': 'Motivo de consulta actualizado',
@@ -85,10 +86,96 @@ def describe_changes(before, plan):
     return changes
 
 
-def replace_prescription(plan, doctor, active_ingredient=''):
-    """Cambio de medicación: la receta anterior queda en el historial y se emite una nueva."""
-    previous = plan.prescriptions.filter(is_active=True).order_by('-created_at').first()
+MAX_MEDICATIONS = 10
+
+
+def medication_text(item):
+    """«Ibuprofeno 400 mg tableta cada 8 horas durante 3 días»."""
+    return ' '.join(filter(None, (
+        item.get('medication_name'), item.get('strength'), (item.get('dosage_form') or '').lower(),
+        (item.get('frequency') or '').lower(), f'durante {item["duration"]}' if item.get('duration') else '',
+    )))
+
+
+def active_medications(plan):
+    """Medicamentos vigentes del tratamiento (uno por receta activa); si no hay recetas, el del plan."""
+    items = [
+        {field: getattr(prescription, field) for field in ('active_ingredient', *MEDICATION_FIELDS)}
+        for prescription in plan.prescriptions.all()
+        if prescription.is_active and prescription.medication_name
+    ]
+    if not items and plan.medication_name:
+        items = [{'active_ingredient': '', **{field: getattr(plan, field) for field in MEDICATION_FIELDS}}]
+    return items
+
+
+def issue_prescriptions(plan, doctor, items, instructions='', details=None):
+    """Emite una receta por medicamento. `details` reemplaza el texto compuesto si hay uno solo."""
+    created = []
+    for item in items:
+        text = item.get('details') or (details if (details and len(items) == 1) else '. '.join(
+            part for part in (medication_text(item), (instructions or '').strip()) if part
+        ))
+        nlp_result = analyze_medical_text(text)
+        created.append(Prescription.objects.create(
+            doctor=doctor, patient=plan.patient, treatment_plan=plan, details=text,
+            active_ingredient=item.get('active_ingredient') or item['medication_name'].split(' ')[0],
+            **{field: item[field] for field in MEDICATION_FIELDS},
+            nlp_severity=nlp_result['severity'], extracted_entities=nlp_result['entities'],
+        ))
+    return created
+
+
+def replace_prescriptions(plan, doctor, items):
+    """Nueva pauta completa (p. ej. en un control): las recetas vigentes pasan al historial."""
     plan.prescriptions.filter(is_active=True).update(is_active=False)
+    return issue_prescriptions(plan, doctor, items, plan.instructions)
+
+
+def _medication_key(item):
+    return tuple((item.get(field) or '').strip().lower() for field in MEDICATION_FIELDS)
+
+
+def _medication_names(items):
+    return ', '.join(f"{item['medication_name']} {item.get('strength') or ''}".strip() for item in items) or 'sin medicación'
+
+
+def edit_medications(plan, doctor, items):
+    """Receta editada desde «Editar tratamiento»: añade, cambia o quita medicamentos.
+
+    Las recetas vigentes pasan al historial y se emite una por cada medicamento nuevo. El primero se
+    copia al plan para las vistas que muestran un solo medicamento. Devuelve el resumen o ''.
+    """
+    current = active_medications(plan)
+    if [_medication_key(item) for item in current] == [_medication_key(item) for item in items]:
+        return ''
+    summary = f'Medicación: {_medication_names(current)} → {_medication_names(items)}'
+    # El cambio va antes que las recetas nuevas para que la línea de tiempo los muestre en ese orden.
+    TreatmentChange.objects.create(treatment_plan=plan, author=doctor, summary=summary)
+    old_name = plan.medication_name
+    replace_prescriptions(plan, doctor, items)
+    first = items[0] if items else {}
+    for field in MEDICATION_FIELDS:
+        setattr(plan, field, first.get(field, ''))
+    fields = [*MEDICATION_FIELDS, 'updated_at']
+    # En los tratamientos de una consulta el título es el medicamento.
+    if old_name and plan.title == old_name and first.get('medication_name'):
+        plan.title = first['medication_name']
+        fields.append('title')
+    plan.save(update_fields=fields)
+    return summary
+
+
+def replace_prescription(plan, doctor, active_ingredient='', previous_name=None):
+    """Cambio del medicamento principal: su receta anterior queda en el historial y se emite una nueva.
+
+    Con varios medicamentos, solo se reemplaza el que cambió (`previous_name`); los demás siguen vigentes.
+    """
+    active = plan.prescriptions.filter(is_active=True)
+    if previous_name and active.filter(medication_name=previous_name).exists() and active.count() > 1:
+        active = active.filter(medication_name=previous_name)
+    previous = active.order_by('-created_at').first()
+    active.update(is_active=False)
     details = '. '.join(part for part in (
         f'{plan.medication_name} {plan.strength}'.strip(),
         plan.dosage_form.lower(),
@@ -116,6 +203,37 @@ def replace_prescription(plan, doctor, active_ingredient=''):
     )
 
 
+def next_phase(plan):
+    """(fase en curso, fase siguiente) del tratamiento; la siguiente es None si ya va en la última."""
+    phases = list(plan.phases.order_by('order', 'id'))
+    current = next((phase for phase in phases if phase.pk == plan.current_phase_id), None)
+    following = [phase for phase in phases if current is None or phase.order > current.order]
+    return current, (following[0] if following else None)
+
+
+def advance_phase(plan, doctor, on=None):
+    """Cierra la fase en curso y comienza la siguiente. Devuelve la fase que empieza."""
+    if not plan.is_active:
+        raise ValidationError({'detail': 'El tratamiento ya fue cerrado.'})
+    current, upcoming = next_phase(plan)
+    if upcoming is None:
+        raise ValidationError({'advance_phase': 'Es la última fase del tratamiento. Para terminarlo, registra el alta.'})
+    day = on or timezone.localdate()
+    if current is not None:
+        current.status, current.end_date = TreatmentPhase.Status.DONE, day
+        current.save(update_fields=['status', 'end_date'])
+    upcoming.status, upcoming.start_date = TreatmentPhase.Status.ACTIVE, day
+    upcoming.save(update_fields=['status', 'start_date'])
+    plan.current_phase = upcoming
+    plan.last_intervention_date = max(filter(None, (day, plan.last_intervention_date)))
+    plan.save(update_fields=['current_phase', 'last_intervention_date', 'updated_at'])
+    TreatmentChange.objects.create(
+        treatment_plan=plan, author=doctor,
+        summary=f'Fase completada: {current.name}. Inicia: {upcoming.name}.' if current else f'Inicia: {upcoming.name}.',
+    )
+    return upcoming
+
+
 def record_edit(plan, before, doctor):
     """Registra lo que cambió; si cambió la medicación, emite la receta nueva. Devuelve los cambios."""
     changes = describe_changes(before, plan)
@@ -124,7 +242,7 @@ def record_edit(plan, before, doctor):
     # El cambio se registra antes que la receta nueva para que la línea de tiempo los muestre en ese orden.
     TreatmentChange.objects.create(treatment_plan=plan, author=doctor, summary='; '.join(changes))
     if plan.medication_name and any(before[field] != getattr(plan, field) for field in MEDICATION_FIELDS):
-        replace_prescription(plan, doctor)
+        replace_prescription(plan, doctor, previous_name=before['medication_name'])
     return changes
 
 

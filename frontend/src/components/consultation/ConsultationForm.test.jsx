@@ -1,13 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../../services/api';
+import { MemoryRouter } from 'react-router-dom';
 import { page } from '../../test/utils';
 import ConsultationForm from './ConsultationForm';
 
 vi.mock('../../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 
 const field = (container, name) => container.querySelector(`[name=${name}]`);
+// El formulario incluye un enlace al historial clínico: necesita el enrutador.
+const renderForm = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
+const openTab = (name) => fireEvent.click(screen.getByRole('tab', { name: new RegExp(name) }));
 
 // El catálogo de cirugías siempre responde; el resto de GET es la búsqueda de medicamentos.
 function mockGet(search) {
@@ -35,10 +39,14 @@ async function fill(container, overrides = {}) {
 const CONSULTATION = { admission_reason: 'Dolor agudo', clinical_procedure: '4', surgery_date: '2026-10-30' };
 
 async function fillConsultation(container, overrides = {}) {
-  await screen.findByRole('option', { name: 'Exodoncia simple' });
+  // La primera pestaña puede estar oculta si ya se pasó a la medicación.
+  await screen.findByRole('option', { name: 'Exodoncia simple', hidden: true });
   for (const name of Object.keys(CONSULTATION)) {
     fireEvent.change(field(container, name), { target: { value: overrides[name] ?? CONSULTATION[name] } });
   }
+  // Con el motivo, el tratamiento y la fecha se habilita la pestaña de medicación.
+  const medication = screen.getByRole('tab', { name: /Medicación/ });
+  if (!medication.disabled) fireEvent.click(medication);
 }
 
 // Envía el formulario aunque el botón esté desactivado, para comprobar la validación del cliente.
@@ -52,41 +60,69 @@ describe('ConsultationForm', () => {
   });
 
   it('el botón queda desactivado sin los datos mínimos', () => {
-    render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     expect(screen.getByRole('button', { name: /Guardar consulta/ })).toBeDisabled();
   });
 
-  it('la medicación y las indicaciones se habilitan tras registrar el motivo y la intervención', async () => {
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+  it('se organiza en pestañas: medicación y cuidados se habilitan tras el motivo y la intervención', async () => {
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await screen.findByRole('option', { name: 'Exodoncia simple' });
-    const medication = screen.getByRole('group', { name: /Medicación/ });
-    const instructions = screen.getByRole('group', { name: /Indicaciones y próximo control/ });
-    expect(medication).toBeDisabled();
-    expect(instructions).toBeDisabled();
-    expect(screen.getAllByText(/Se habilita cuando completes el motivo/)).toHaveLength(2);
+    const tabs = within(screen.getByRole('tablist', { name: 'Registro de la consulta' })).getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['1. Procedimiento y odontograma', '2. Medicación (opcional)', '3. Cuidados y dieta']);
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+    expect(tabs[1]).toBeDisabled();
+    expect(tabs[2]).toBeDisabled();
+    expect(screen.getByText(/se habilitan al completar el motivo/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Historial clínico/ })).toHaveAttribute('href', '/panel-doctor/pacientes/1/historia');
 
     await fillConsultation(container);
-    expect(medication).toBeEnabled();
-    expect(instructions).toBeEnabled();
-    expect(screen.getByText(/Receta para exodoncia simple del 30 de octubre de 2026/)).toBeInTheDocument();
+    expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel', { name: /Medicación/ })).toHaveTextContent('Receta para exodoncia simple del 30 de octubre de 2026');
+    // Las flechas recorren las pestañas.
+    fireEvent.keyDown(tabs[1], { key: 'ArrowRight' });
+    expect(tabs[2]).toHaveAttribute('aria-selected', 'true');
+    expect(tabs[2]).toHaveFocus();
+    expect(screen.getByRole('tabpanel', { name: /Cuidados y dieta/ })).toBeInTheDocument();
 
     fireEvent.change(field(container, 'admission_reason'), { target: { value: '' } });
-    expect(medication).toBeDisabled();
+    expect(tabs[1]).toBeDisabled();
+  });
+
+  it('al guardar con errores abre la pestaña del primer error y envía la dieta', async () => {
+    api.post.mockResolvedValue({ data: { prescription: { id: 1 }, treatment: { id: 2 } } });
+    const { container } = renderForm(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
+    await fill(container, { instructions: 'corto' });
+    fireEvent.change(field(container, 'diet_instructions'), { target: { value: 'Dieta blanda y fría las primeras 24 horas.' } });
+    openTab('Procedimiento');
+    submit();
+    const care = screen.getByRole('tab', { name: /Cuidados y dieta/ });
+    expect(care).toHaveAttribute('aria-selected', 'true');
+    expect(care).toHaveFocus();
+    expect(within(care).getByRole('img', { name: '(con errores)' })).toBeInTheDocument();
+    fireEvent.change(field(container, 'instructions'), { target: { value: 'Tomar con abundante agua.' } });
+    submit();
+    await screen.findByText(/Consulta registrada/);
+    expect(api.post.mock.calls[0][1].diet_instructions).toBe('Dieta blanda y fría las primeras 24 horas.');
+    // Tras guardar, el formulario vuelve a la primera pestaña.
+    expect(screen.getByRole('tab', { name: /Procedimiento/ })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('envía la consulta con el formato que espera la API', async () => {
     const onAdded = vi.fn();
     const onTreatment = vi.fn();
     api.post.mockResolvedValue({ data: { prescription: { id: 1 }, treatment: { id: 2 } } });
-    const { container } = render(<ConsultationForm patientId={7} onPrescriptionAdded={onAdded} onTreatmentAdded={onTreatment} />);
+    const { container } = renderForm(<ConsultationForm patientId={7} onPrescriptionAdded={onAdded} onTreatmentAdded={onTreatment} />);
     await fill(container);
     submit();
     await screen.findByText(/Consulta registrada/);
     const [url, body] = api.post.mock.calls[0];
     expect(url).toBe('/consultations/');
-    expect(body).toMatchObject({ patient: 7, duration: '3 días', medication_name: 'Paracetamol', clinical_procedure: 4, surgery_date: '2026-10-30' });
-    expect(body.details).toContain('Paracetamol 500 mg');
-    expect(body.details).toContain('durante 3 días');
+    expect(body).toMatchObject({ patient: 7, clinical_procedure: 4, surgery_date: '2026-10-30' });
+    // La receta viaja como lista: uno o más medicamentos.
+    expect(body.medications).toHaveLength(1);
+    expect(body.medications[0]).toMatchObject({ duration: '3 días', medication_name: 'Paracetamol' });
+    expect(body.medications[0].details).toContain('Paracetamol 500 mg');
+    expect(body.medications[0].details).toContain('durante 3 días');
     expect(onAdded).toHaveBeenCalledWith({ id: 1 });
     expect(onTreatment).toHaveBeenCalledWith({ id: 2 });
     expect(field(container, 'instructions').value).toBe('');
@@ -98,15 +134,97 @@ describe('ConsultationForm', () => {
     ['instructions', 'corto', /indicaciones entre 10 y 1000/],
     ['active_ingredient', 'x', /principio activo/],
   ])('valida %s en el cliente', async (name, value, message) => {
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await fill(container, { [name]: value });
     submit();
     expect(screen.getByText(message)).toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalled();
   });
 
+  it('una receta puede llevar varios medicamentos y cada uno se valida por separado', async () => {
+    api.post.mockResolvedValue({ data: { prescription: { id: 1 }, treatment: { id: 2 } } });
+    const { container } = renderForm(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
+    await fill(container);
+    fireEvent.click(screen.getByRole('button', { name: 'Añadir otro medicamento' }));
+    // El recién recetado se pliega en una ficha con editar y eliminar.
+    const first = screen.getByRole('region', { name: 'Medicamento 1' });
+    expect(first).toHaveTextContent('Paracetamol 500 mg');
+    expect(first).toHaveTextContent('Tableta · Cada 8 horas · 3 días');
+    expect(within(first).queryByLabelText('Medicamento')).toBeNull();
+    expect(within(first).getByRole('button', { name: 'Editar el medicamento 1: Paracetamol' })).toBeInTheDocument();
+    const second = screen.getByRole('region', { name: 'Medicamento 2' });
+    // Mientras el nuevo esté vacío no se puede añadir otro más.
+    expect(screen.queryByRole('button', { name: 'Añadir otro medicamento' })).toBeNull();
+    // Sin completar el segundo, el formulario no se envía y el error aparece en esa tarjeta.
+    submit();
+    expect(within(second).getByText(/Indica un medicamento/)).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+    fireEvent.change(within(second).getByLabelText('Medicamento'), { target: { value: 'Ibuprofeno' } });
+    const set = (name, value) => fireEvent.change(second.querySelector(`[name=${name}]`), { target: { value } });
+    set('active_ingredient', 'Ibuprofeno');
+    set('strength', '400 mg');
+    set('dosage_form', 'Tableta');
+    set('frequency', 'Cada 8 horas');
+    set('duration', '3');
+    // Un tercero añadido por error se quita sin afectar a los otros.
+    fireEvent.click(screen.getByRole('button', { name: 'Añadir otro medicamento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar el medicamento 3' }));
+    expect(screen.queryByRole('region', { name: 'Medicamento 3' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Medicamento 2' })).toHaveTextContent('Ibuprofeno 400 mg');
+    submit();
+    await screen.findByText(/Consulta registrada/);
+    const { medications } = api.post.mock.calls[0][1];
+    expect(medications.map((item) => item.medication_name)).toEqual(['Paracetamol', 'Ibuprofeno']);
+  });
+
+  it('no pliega un medicamento incompleto; editar y eliminar actúan sobre la ficha plegada', async () => {
+    api.post.mockResolvedValue({ data: { prescription: { id: 1 }, treatment: { id: 2 } } });
+    const { container } = renderForm(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
+    await fill(container, { frequency: '' });
+    fireEvent.click(screen.getByRole('button', { name: 'Añadir otro medicamento' }));
+    expect(screen.queryByRole('region', { name: 'Medicamento 2' })).toBeNull();
+    expect(within(screen.getByRole('region', { name: 'Medicamento 1' })).getByText(/frecuencia/i, { selector: 'span' })).toBeInTheDocument();
+    fireEvent.change(field(container, 'frequency'), { target: { value: 'Cada 8 horas' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Listo, plegar el medicamento 1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Editar el medicamento 1: Paracetamol' }));
+    expect(field(container, 'strength').value).toBe('500 mg');
+    fireEvent.click(screen.getByRole('button', { name: 'Listo, plegar el medicamento 1' }));
+    // Eliminar el único medicamento deja la receta vacía y abierta para empezar de nuevo.
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar el medicamento 1: Paracetamol' }));
+    expect(screen.getByLabelText('Medicamento')).toHaveValue('');
+  });
+
+  it('las frases rápidas se añaden y quitan con un clic, y el odontólogo guarda las suyas', async () => {
+    api.post.mockImplementation(async (url, body) => ({ data: { id: 9, ...body } }));
+    const { container } = renderForm(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
+    await fillConsultation(container);
+    openTab('Cuidados');
+    const quick = screen.getByRole('group', { name: 'Frases rápidas: Indicaciones y cuidados' });
+    const phrase = within(quick).getByRole('button', { name: /Cepíllate con suavidad/ });
+    fireEvent.click(phrase);
+    expect(field(container, 'instructions').value).toBe('Cepíllate con suavidad después de cada comida.');
+    expect(phrase).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(within(quick).getByRole('button', { name: /Usa un cepillo de cerdas suaves/ }));
+    expect(field(container, 'instructions').value).toBe('Cepíllate con suavidad después de cada comida. Usa un cepillo de cerdas suaves.');
+    fireEvent.click(phrase);
+    expect(field(container, 'instructions').value).toBe('Usa un cepillo de cerdas suaves.');
+    // Dieta tiene su propio catálogo.
+    const diet = screen.getByRole('group', { name: 'Frases rápidas: Dieta (opcional)' });
+    fireEvent.click(within(diet).getByRole('button', { name: /No uses sorbete/ }));
+    expect(field(container, 'diet_instructions').value).toBe('No uses sorbete durante 3 días.');
+    // Mis frases: se guardan en el servidor y quedan listas para usar.
+    fireEvent.click(within(quick).getByRole('button', { name: 'Mis frases' }));
+    fireEvent.click(within(quick).getByRole('button', { name: /Guardar una frase/ }));
+    fireEvent.change(within(quick).getByLabelText('Frase nueva'), { target: { value: 'Usa la férula todas las noches.' } });
+    fireEvent.click(within(quick).getByRole('button', { name: 'Guardar' }));
+    expect(api.post).toHaveBeenCalledWith('/doctor/instruction-presets/', { field: 'instructions', text: 'Usa la férula todas las noches.' });
+    fireEvent.click(await within(quick).findByRole('button', { name: /^Usa la férula/ }));
+    expect(within(quick).getByRole('button', { name: 'Borrar mi frase «Usa la férula todas las noches.»' })).toBeInTheDocument();
+    expect(field(container, 'instructions').value).toBe('Usa un cepillo de cerdas suaves. Usa la férula todas las noches.');
+  });
+
   it('la duración solo admite dígitos y rechaza cero', async () => {
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await fillConsultation(container);
     fireEvent.change(field(container, 'duration'), { target: { value: 'a1b2c34' } });
     expect(field(container, 'duration').value).toBe('123');
@@ -117,7 +235,7 @@ describe('ConsultationForm', () => {
 
   it('muestra los errores de la API junto a su campo', async () => {
     api.post.mockRejectedValue({ response: { data: { procedure: ['Procedimiento rechazado'] } } });
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await fill(container);
     submit();
     expect(await screen.findByText('Procedimiento rechazado')).toBeInTheDocument();
@@ -126,7 +244,7 @@ describe('ConsultationForm', () => {
 
   it('busca en el catálogo y rellena el medicamento elegido', async () => {
     mockGet({ data: { message: '', items: [{ name: 'Ibuprofen 400 MG Oral Tablet', source: 'RxNav', strength: '400 MG', rxcui: '1' }] } });
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await fillConsultation(container);
     await userEvent.type(screen.getByLabelText('Medicamento'), 'ibu');
     fireEvent.click(await screen.findByRole('button', { name: /Ibuprofen 400 MG/ }));
@@ -135,7 +253,7 @@ describe('ConsultationForm', () => {
 
   it('BUG-57 conserva la concentración del medicamento elegido', async () => {
     mockGet({ data: { message: '', items: [{ name: 'Ibuprofen 400 MG Oral Tablet', source: 'RxNav', strength: '400 MG', rxcui: '1' }] } });
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await fillConsultation(container);
     await userEvent.type(screen.getByLabelText('Medicamento'), 'ibu');
     fireEvent.click(await screen.findByRole('button', { name: /Ibuprofen 400 MG/ }));
@@ -144,7 +262,7 @@ describe('ConsultationForm', () => {
 
   it('avisa si el catálogo no responde y permite seguir', async () => {
     mockGet(new Error('red'));
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await fillConsultation(container);
     await userEvent.type(screen.getByLabelText('Medicamento'), 'ibu');
     expect(await screen.findByText(/escribir el medicamento manualmente/)).toBeInTheDocument();
@@ -152,7 +270,7 @@ describe('ConsultationForm', () => {
 
   it('BUG-38 la lista no se reabre tras elegir', async () => {
     mockGet({ data: { message: '', items: [{ name: 'Ibuprofen 400 MG', source: 'RxNav', rxcui: '1' }] } });
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await fillConsultation(container);
     await userEvent.type(screen.getByLabelText('Medicamento'), 'ibu');
     fireEvent.click(await screen.findByRole('button', { name: /Ibuprofen 400 MG/ }));
@@ -161,14 +279,14 @@ describe('ConsultationForm', () => {
   });
 
   it('BUG-39 se pueden elegir dosis habituales sin catálogo externo', () => {
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     const options = [...field(container, 'strength').options].map((option) => option.value);
     expect(options).toContain('400 mg');
   });
 
   it('BUG-52 el error de details de la API se muestra al usuario', async () => {
     api.post.mockRejectedValue({ response: { data: { details: 'Escribe indicaciones claras para el paciente.' } } });
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await fill(container);
     submit();
     expect(await screen.findByText('Escribe indicaciones claras para el paciente.')).toBeInTheDocument();
@@ -176,7 +294,7 @@ describe('ConsultationForm', () => {
 
   it('RF04 CA01: el tratamiento se elige del catálogo y la fecha no puede ser futura', async () => {
     mockGet({ data: { items: [], message: '' } });
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await fill(container, { surgery_date: '2999-01-01' });
     submit();
     expect(screen.getByText(/fecha de intervención que no sea futura/)).toBeInTheDocument();
@@ -199,7 +317,7 @@ describe('ConsultationForm: tratamientos de cualquier especialidad', () => {
 
   it('filtra por especialidad, muestra el protocolo y envía piezas y próximo control', async () => {
     api.post.mockResolvedValue({ data: { prescription: { id: 1 }, treatment: { id: 2 } } });
-    const { container } = render(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
     await screen.findByRole('option', { name: 'Ortodoncia' });
     fireEvent.change(field(container, 'specialty'), { target: { value: 'ortodoncia' } });
     const options = [...field(container, 'clinical_procedure').options].map((option) => option.textContent);
@@ -212,8 +330,8 @@ describe('ConsultationForm: tratamientos de cualquier especialidad', () => {
     // El protocolo propone cuándo vuelve el paciente; el odontólogo lo ajusta.
     expect(field(container, 'next_control_in_days').value).toBe('28');
 
-    fireEvent.click(screen.getByRole('button', { name: /^13:/ }));
-    fireEvent.click(screen.getByRole('button', { name: /^23:/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /^13:/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /^23:/ }));
     fireEvent.change(field(container, 'admission_reason'), { target: { value: 'Apiñamiento dental' } });
     fireEvent.change(field(container, 'surgery_date'), { target: { value: '2026-10-30' } });
     fireEvent.change(field(container, 'next_control_in_days'), { target: { value: '8' } });
@@ -235,16 +353,16 @@ describe('ConsultationForm: tratamientos de cualquier especialidad', () => {
     api.get.mockImplementation(async (url) => (url === '/procedures/'
       ? { data: page([...catalog, { id: 11, name: 'Pulpotomía', specialty: 'odontopediatria', specialty_label: 'Odontopediatría', default_phases: [], care_items: [] }]) }
       : { data: { items: [], message: '' } }));
-    const { container } = render(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
     await screen.findByRole('option', { name: 'Pulpotomía' });
     fireEvent.change(field(container, 'clinical_procedure'), { target: { value: '11' } });
     expect(field(container, 'specialty').value).toBe('odontopediatria');
-    expect(screen.getByRole('button', { name: /^55:/ })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /^55:/ })).toBeInTheDocument();
   });
 
   it('el próximo control admite hasta 730 días y vacío significa que no hace falta', async () => {
     api.post.mockResolvedValue({ data: { prescription: { id: 1 }, treatment: { id: 2 } } });
-    const { container } = render(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
     await fill(container, { next_control_in_days: '900' });
     submit();
     expect(screen.getByText(/Indica entre 0 y 730 días/)).toBeInTheDocument();
@@ -291,13 +409,14 @@ describe('ConsultationForm: cada tratamiento tiene su propio registro', () => {
   it('brackets: pide sus datos, no muestra odontograma ni obliga a recetar', async () => {
     api.post.mockResolvedValue({ data: { prescription: null, treatment: { id: 2 } } });
     const onPrescription = vi.fn();
-    const { container } = render(<ConsultationForm patientId={7} onPrescriptionAdded={onPrescription} />);
+    const { container } = renderForm(<ConsultationForm patientId={7} onPrescriptionAdded={onPrescription} />);
     await start(container, 9);
-    expect(screen.getByRole('group', { name: '2. Datos de ortodoncia con brackets' })).toBeEnabled();
+    expect(screen.getByRole('group', { name: 'Datos de ortodoncia con brackets' })).toBeInTheDocument();
     // Solo los datos del inicio; «Arco colocado» se pide en cada control.
     expect(screen.getByLabelText('Tipo de aparato')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Arco colocado/)).toBeNull();
     expect(screen.queryByText(/Piezas tratadas/)).toBeNull();
+    openTab('Medicación');
     expect(screen.getByRole('checkbox', { name: /Recetar medicación en esta consulta/ })).not.toBeChecked();
     expect(screen.getByText(/Este tratamiento no suele llevar receta/)).toBeInTheDocument();
     expect(screen.queryByLabelText('Medicamento')).toBeNull();
@@ -317,16 +436,17 @@ describe('ConsultationForm: cada tratamiento tiene su propio registro', () => {
       clinical_procedure: 9, prescribes_medication: false, teeth: [], next_control_in_days: 28,
       clinical_data: { aparato: 'Brackets estéticos', arcadas: 'Ambas' },
     });
-    for (const name of ['medication_name', 'strength', 'details']) expect(body).not.toHaveProperty(name);
+    for (const name of ['medication_name', 'strength', 'details', 'medications']) expect(body).not.toHaveProperty(name);
     expect(onPrescription).not.toHaveBeenCalled();
   });
 
   it('implante: valida números, envía sí/no y propone receta', async () => {
     api.post.mockRejectedValue({ response: { data: { clinical_data: { implante: 'Dato rechazado por el servidor' } } } });
-    const { container } = render(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
     await start(container, 5);
-    expect(screen.getByRole('checkbox', { name: /Recetar medicación en esta consulta/ })).toBeChecked();
     expect(screen.getByText(/Piezas tratadas/)).toBeInTheDocument();
+    openTab('Medicación');
+    expect(screen.getByRole('checkbox', { name: /Recetar medicación en esta consulta/ })).toBeChecked();
     // El odontólogo puede decidir no recetar aunque el tratamiento suela llevarlo.
     fireEvent.click(screen.getByRole('checkbox', { name: /Recetar medicación en esta consulta/ }));
     fireEvent.change(field(container, 'instructions'), { target: { value: 'Dieta blanda durante una semana.' } });
@@ -343,7 +463,7 @@ describe('ConsultationForm: cada tratamiento tiene su propio registro', () => {
   });
 
   it('al cambiar de tratamiento se descartan los datos del anterior', async () => {
-    const { container } = render(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={7} onPrescriptionAdded={() => {}} />);
     await start(container, 5);
     fireEvent.change(screen.getByLabelText('Medidas del implante'), { target: { value: '4.1 × 10 mm' } });
     fireEvent.change(field(container, 'clinical_procedure'), { target: { value: '9' } });
@@ -369,7 +489,7 @@ describe('ConsultationForm: catálogo oficial de medicamentos', () => {
 
   it('al elegir el principio activo ofrece sus concentraciones y presentaciones reales', async () => {
     mockGet({ data: { source: 'CIMA', message: '', items: [ibuprofen] } });
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await fillConsultation(container);
     await userEvent.type(screen.getByLabelText('Medicamento'), 'ibu');
     const option = await screen.findByRole('button', { name: /Ibuprofeno/ });
@@ -380,6 +500,57 @@ describe('ConsultationForm: catálogo oficial de medicamentos', () => {
     expect(strengths).toEqual(['', '400 mg', '600 mg', '20 mg/ml']);
     fireEvent.change(field(container, 'strength'), { target: { value: '600 mg' } });
     expect([...field(container, 'dosage_form').options].map((item) => item.value)).toEqual(['', 'Comprimido', 'Granulado oral']);
+  });
+
+  it('receta en tres clics: medicamento, concentración y frecuencia; el resto se completa solo', async () => {
+    const amoxiclav = {
+      name: 'Augmentin (Amoxicilina + ácido clavulánico)', active_ingredient: 'Amoxicilina + ácido clavulánico', source: 'Vademécum de la clínica',
+      presentations: [{ strength: '500/125 mg', form: 'Tableta', route: 'Oral' }, { strength: '875/125 mg', form: 'Tableta', route: 'Oral' }],
+      frequencies: ['Cada 8 horas', 'Cada 12 horas'], default_frequency: 'Cada 12 horas', duration_days: 7,
+      with_food: 'Tómalo al inicio de una comida.', common_effects: 'Diarrea o náuseas.',
+    };
+    mockGet({ data: { source: 'Vademécum de la clínica', message: '', items: [amoxiclav] } });
+    api.post.mockResolvedValue({ data: { prescription: { id: 1 }, treatment: { id: 2 } } });
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    await fillConsultation(container);
+    await userEvent.type(screen.getByLabelText('Medicamento'), 'augm');
+    fireEvent.click(await screen.findByRole('button', { name: /Augmentin/ }));
+    fireEvent.change(field(container, 'strength'), { target: { value: '875/125 mg' } });
+    // Frecuencia, presentación, duración y «cómo tomarlo» ya están puestos.
+    expect(field(container, 'frequency').value).toBe('Cada 12 horas');
+    expect(field(container, 'dosage_form').value).toBe('Tableta');
+    expect(field(container, 'duration').value).toBe('7');
+    expect(field(container, 'notes').value).toBe('Vía oral. Tómalo al inicio de una comida. Puede causar: diarrea o náuseas.');
+    fireEvent.change(field(container, 'instructions'), { target: { value: 'Dieta blanda las primeras 24 horas.' } });
+    submit();
+    await screen.findByText(/Consulta registrada/);
+    const [body] = api.post.mock.calls[0][1].medications;
+    expect(body).toMatchObject({ active_ingredient: 'Amoxicilina + ácido clavulánico', strength: '875/125 mg', duration: '7 días' });
+    expect(body.details).toBe('Augmentin (Amoxicilina + ácido clavulánico) 875/125 mg. tableta. cada 12 horas. durante 7 días. '
+      + 'Vía oral. Tómalo al inicio de una comida. Puede causar: diarrea o náuseas. Dieta blanda las primeras 24 horas.');
+  });
+
+  it('una marca que no está en el catálogo se guarda con su principio activo', async () => {
+    api.get.mockImplementation(async (url) => {
+      if (url === '/procedures/') return { data: page([{ id: 4, name: 'Exodoncia simple' }]) };
+      return { data: { source: 'local', items: [], message: 'No está en el vademécum ni en CIMA.' } };
+    });
+    api.post.mockImplementation(async (url) => (url === '/vademecum/'
+      ? { data: { id: 3, generic_name: 'Ibuprofeno', presentations: [{ strength: '400 mg', form: 'Tableta', route: 'Oral' }],
+        frequencies: ['Cada 8 horas'], default_frequency: 'Cada 8 horas', duration_days: 3, with_food: 'Con alimentos.', common_effects: '' } }
+      : { data: {} }));
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    await fillConsultation(container);
+    await userEvent.type(screen.getByLabelText('Medicamento'), 'Moralex');
+    expect(await screen.findByText(/No está en el vademécum ni en CIMA/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Guardar «Moralex»/ })).toBeNull();
+    fireEvent.change(field(container, 'active_ingredient'), { target: { value: 'Ibuprofeno' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar «Moralex» en el vademécum' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('«Moralex» quedó en el vademécum de la clínica como Ibuprofeno.');
+    expect(api.post).toHaveBeenCalledWith('/vademecum/', { brand: 'Moralex', active_ingredient: 'Ibuprofeno' });
+    expect([...field(container, 'strength').options].map((item) => item.value)).toEqual(['', '400 mg']);
+    expect(field(container, 'frequency').value).toBe('Cada 8 horas');
+    expect(field(container, 'duration').value).toBe('3');
   });
 
   it('muestra la ficha oficial del medicamento cuando el odontólogo la pide', async () => {
@@ -395,7 +566,7 @@ describe('ConsultationForm: catálogo oficial de medicamentos', () => {
       }
       return { data: { items: [], message: '' } };
     });
-    const { container } = render(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
+    const { container } = renderForm(<ConsultationForm patientId={1} onPrescriptionAdded={() => {}} />);
     await fillConsultation(container);
     expect(screen.queryByRole('button', { name: /Ver ficha/ })).toBeNull();
     fireEvent.change(field(container, 'active_ingredient'), { target: { value: 'Ibuprofeno' } });

@@ -56,7 +56,7 @@ export default function AccountMenu({ user }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 origin-top-right animate-[account-menu-in_160ms_cubic-bezier(0.23,1,0.32,1)] w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl ring-1 ring-black/5">
+        <div className="absolute right-0 mt-2 ds-pop origin-top-right w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl ring-1 ring-black/5">
           <p className="border-b border-slate-100 px-3 py-2.5">
             <strong className="block truncate text-sm font-bold text-slate-800">{displayName}</strong>
             <span className="block truncate text-xs text-slate-500">@{user?.username || 'usuario'}</span>

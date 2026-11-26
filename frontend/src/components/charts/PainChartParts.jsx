@@ -21,13 +21,13 @@ export function PainLegend({ reportedLabel, expectedLabel }) {
   );
 }
 
-export function PainTooltipContent({ point, showReported }) {
+export function PainTooltipContent({ point, showReported, showLevels = true }) {
   return (
     <>
       {showReported && (point.reported !== null ? (
         <p className="mt-1 flex items-center gap-1.5">
-          <AlertDot color={point.color} />
-          EVA máx. {point.reported} · {point.reports} {point.reports === 1 ? 'reporte' : 'reportes'}
+          {showLevels && <AlertDot color={point.color} />}
+          EVA máx. {point.reported}{showLevels ? ` · ${point.reports} ${point.reports === 1 ? 'reporte' : 'reportes'}` : ''}
         </p>
       ) : (
         <p className="mt-1 text-slate-500">Sin reportes</p>
@@ -37,7 +37,7 @@ export function PainTooltipContent({ point, showReported }) {
   );
 }
 
-export function PainTable({ series, showReported, showExpected }) {
+export function PainTable({ series, showReported, showExpected, showLevels = true }) {
   return (
     <details className="mt-3 text-xs text-slate-600">
       <summary className="cursor-pointer font-semibold text-blue-700">Ver datos en tabla</summary>
@@ -47,7 +47,7 @@ export function PainTable({ series, showReported, showExpected }) {
             <th scope="col" className="py-1">Día</th>
             {showReported && <th scope="col">EVA máx.</th>}
             {showExpected && <th scope="col">Esperado</th>}
-            {showReported && <th scope="col">Nivel</th>}
+            {showReported && showLevels && <th scope="col">Nivel</th>}
           </tr>
         </thead>
         <tbody>
@@ -56,7 +56,7 @@ export function PainTable({ series, showReported, showExpected }) {
               <td className="py-1">{point.day}</td>
               {showReported && <td>{point.reported ?? '—'}</td>}
               {showExpected && <td>{point.expected ?? '—'}</td>}
-              {showReported && <td>{point.color ? ALERT_LABELS[point.color] : '—'}</td>}
+              {showReported && showLevels && <td>{point.color ? ALERT_LABELS[point.color] : '—'}</td>}
             </tr>
           ))}
         </tbody>

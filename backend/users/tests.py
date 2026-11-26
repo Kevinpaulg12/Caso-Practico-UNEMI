@@ -99,6 +99,7 @@ class PatientRegistrationTests(APITestCase):
                 'birth_date': '1995-05-10',
                 'phone': '0991234567',
                 'emergency_contact': '0987654321',
+                'email': 'ana.lopez@example.com',
             },
             format='json',
         )
@@ -108,9 +109,9 @@ class PatientRegistrationTests(APITestCase):
         self.assertEqual(patient.role, User.Roles.PATIENT)
         self.assertTrue(patient.must_change_password)
         self.assertEqual(patient.profile.birth_date.isoformat(), '1995-05-10')
-        self.assertIn('temporary_password', response.data)
-        self.assertNotEqual(response.data['temporary_password'], 'Paciente-6789!')
-        self.assertTrue(patient.check_password(response.data['temporary_password']))
+        # La contraseña temporal nunca viaja en la respuesta: solo por correo.
+        self.assertNotIn('temporary_password', response.data)
+        self.assertEqual(response.data['credentials']['email'], 'a***@example.com')
 
     def test_patient_can_change_temporary_password_and_clear_first_login_flag(self):
         patient = User.objects.create_user(

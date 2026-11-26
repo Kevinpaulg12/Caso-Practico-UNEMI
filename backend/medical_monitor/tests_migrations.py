@@ -8,7 +8,7 @@ from django.utils import timezone
 
 APP = 'medical_monitor'
 # Se fija también la app de usuarios para que el estado histórico coincida con las tablas reales.
-USERS = ('users', '0010_terms_exact_age_version')
+USERS = ('users', '0012_terms_shared_history_version')
 BEFORE = [(APP, '0018_controls_and_protocol_forms'), USERS]
 AFTER = [(APP, '0020_remove_appointments'), USERS]
 
@@ -82,3 +82,33 @@ class AppointmentsToControlsMigrationTests(TransactionTestCase):
         brackets = Procedure.objects.get(code='ORT-001')
         self.assertEqual((brackets.control_every_days, brackets.medication_default, brackets.uses_teeth), (28, False, False))
         self.assertTrue(brackets.consultation_fields)
+
+
+class RequestsToBookingsMigrationTests(AppointmentsToControlsMigrationTests):
+    """Las solicitudes del sistema anterior pasan a citas reservadas (con hora) o canceladas (sin hora)."""
+
+    test_done_appointments_become_controls_and_the_next_one_becomes_the_next_control = None
+
+    def test_confirmed_requests_keep_their_time_and_pending_ones_are_cancelled(self):
+        apps = self.migrate([(APP, '0025_doctor_agenda'), USERS])
+        User = apps.get_model('users', 'User')
+        Profile = apps.get_model('users', 'UserProfile')
+        Request = apps.get_model(APP, 'AppointmentRequest')
+        doctor = User.objects.create(username='doc', role='DOC')
+        patient = User.objects.create(username='pac', role='PAT')
+        Profile.objects.create(user=patient, primary_doctor=doctor)
+        when = timezone.now() + timedelta(days=3)
+        base = {'patient': patient, 'preferred_date': timezone.localdate(), 'preferred_period': 'morning'}
+        confirmed = Request.objects.create(**base, status='confirmed', confirmed_at=when, handled_by=doctor)
+        duplicate = Request.objects.create(**base, status='rescheduled', confirmed_at=when, handled_by=doctor)
+        pending = Request.objects.create(**base, status='pending')
+
+        apps = self.migrate([(APP, '0026_appointments_to_bookings'), USERS])
+        Request = apps.get_model(APP, 'AppointmentRequest')
+        confirmed = Request.objects.get(pk=confirmed.pk)
+        self.assertEqual((confirmed.status, confirmed.doctor_id, confirmed.starts_at), ('booked', doctor.pk, when))
+        # Dos solicitudes en el mismo turno: la segunda no puede quedar reservada.
+        self.assertEqual(Request.objects.get(pk=duplicate.pk).status, 'cancelled')
+        pending = Request.objects.get(pk=pending.pk)
+        self.assertEqual((pending.status, pending.doctor_id), ('cancelled', doctor.pk))
+        self.assertIn('reserva un turno', pending.note)

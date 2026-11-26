@@ -1,6 +1,6 @@
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { IconHeartPulse, IconTooth, IconShield, IconClipboard, IconSparkles } from '../components/Icons';
+import { IconArrowRight, IconClipboard, IconHeartPulse, IconShield, IconSparkles, IconTooth, IconUser } from '../components/Icons';
 
 const FEATURES = [
   {
@@ -37,7 +37,7 @@ export default function Home() {
 
   if (isAuthenticated) {
     const currentRole = role || localStorage.getItem('user_role');
-    if (currentRole === 'DOC') return <Navigate to="/panel-doctor" replace />;
+    if (currentRole === 'DOC') return <Navigate to="/panel-doctor/monitoreo" replace />;
     if (currentRole === 'ADM') return <Navigate to="/panel-admin" replace />;
     return <Navigate to="/panel-paciente" replace />;
   }
@@ -62,7 +62,7 @@ export default function Home() {
             to="/login"
             className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95"
           >
-            Iniciar sesión
+            <IconUser className="h-3.5 w-3.5 shrink-0" />Iniciar sesión
           </Link>
         </nav>
       </header>
@@ -84,8 +84,7 @@ export default function Home() {
             to="/login"
             className="mt-8 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/25 transition hover:bg-blue-700 active:scale-95"
           >
-            Acceder al portal
-            <span aria-hidden="true" className="text-base">→</span>
+            Acceder al portal<IconArrowRight className="h-4 w-4 shrink-0" />
           </Link>
         </section>
 

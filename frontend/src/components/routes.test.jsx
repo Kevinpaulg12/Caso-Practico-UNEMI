@@ -13,7 +13,7 @@ const app = (
     <Route path="/login" element={<p>login</p>} />
     <Route path="/mi-cuenta" element={<p>cuenta</p>} />
     <Route path="/consentimiento" element={<p>consentimiento</p>} />
-    <Route path="/panel-doctor" element={<RoleRoute role="DOC"><p>doctor</p></RoleRoute>} />
+    <Route path="/panel-doctor/monitoreo" element={<RoleRoute role="DOC"><p>doctor</p></RoleRoute>} />
     <Route path="/panel-admin" element={<RoleRoute role="ADM"><p>admin</p></RoleRoute>} />
     <Route path="/panel-paciente" element={<RoleRoute role="PAT"><p>paciente</p></RoleRoute>} />
     <Route path="/privado" element={<ProtectedRoute><p>privado</p></ProtectedRoute>} />
@@ -25,7 +25,7 @@ describe('rutas protegidas', () => {
 
   it('sin sesión todo redirige a login', () => {
     useAuth.mockReturnValue({ isAuthenticated: false });
-    for (const path of ['/panel-doctor', '/privado']) {
+    for (const path of ['/panel-doctor/monitoreo', '/privado']) {
       const { unmount } = renderAt(app, path);
       expect(screen.getByText('login')).toBeInTheDocument();
       unmount();
@@ -39,7 +39,7 @@ describe('rutas protegidas', () => {
   });
 
   it.each([
-    ['DOC', '/panel-doctor', 'doctor'],
+    ['DOC', '/panel-doctor/monitoreo', 'doctor'],
     ['ADM', '/panel-admin', 'admin'],
     ['PAT', '/panel-paciente', 'paciente'],
   ])('el rol %s accede a %s', (role, path, text) => {
@@ -51,7 +51,7 @@ describe('rutas protegidas', () => {
   it.each([
     ['PAT', '/panel-admin', 'paciente'],
     ['DOC', '/panel-admin', 'doctor'],
-    ['ADM', '/panel-doctor', 'admin'],
+    ['ADM', '/panel-doctor/monitoreo', 'admin'],
   ])('el rol %s no entra en %s', (role, path, landing) => {
     useAuth.mockReturnValue({ isAuthenticated: true, role, user: {} });
     renderAt(app, path);
@@ -75,7 +75,7 @@ describe('rutas protegidas', () => {
 
   it('BUG-51 un doctor con clave temporal también va a su cuenta', () => {
     useAuth.mockReturnValue({ isAuthenticated: true, role: 'DOC', user: { must_change_password: true } });
-    renderAt(app, '/panel-doctor');
+    renderAt(app, '/panel-doctor/monitoreo');
     expect(screen.getByText('cuenta')).toBeInTheDocument();
   });
 });

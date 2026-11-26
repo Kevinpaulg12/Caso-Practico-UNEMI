@@ -6,6 +6,12 @@ from .models import PatientReport
 from .services import evaluate_patient_status
 
 
+PATIENT_HIDDEN_FIELDS = (
+    'risk_level', 'alert_color', 'alert_reasons', 'recommendation', 'evolution_status', 'extracted_entities',
+    'nlp_severity', 'doctor_notified',
+)
+
+
 class PatientReportSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.username', read_only=True)
     eva_score = serializers.IntegerField(source='pain_level', read_only=True)
@@ -34,6 +40,11 @@ class PatientReportSerializer(serializers.ModelSerializer):
             'postoperative_day',
             'created_at',
         ]
+        # El formulario heredado sigue exigiendo el dolor y la comparación; el chat puede no tenerlos.
+        extra_kwargs = {
+            'pain_level': {'required': True, 'allow_null': False},
+            'comparison': {'required': True, 'allow_blank': False},
+        }
         read_only_fields = [
             'alert_reasons',
             'postoperative_day',
@@ -55,6 +66,15 @@ class PatientReportSerializer(serializers.ModelSerializer):
         if 'pain_level' not in data and 'eva_score' in data:
             data['pain_level'] = data['eva_score']
         return super().to_internal_value(data)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if request is not None and getattr(request.user, 'role', None) == 'PAT':
+            # El paciente no ve el triaje: ni colores, ni motivos, ni lo que el sistema extrajo.
+            for field in PATIENT_HIDDEN_FIELDS:
+                data.pop(field, None)
+        return data
 
     def validate_pain_level(self, value):
         if not 0 <= value <= 10:

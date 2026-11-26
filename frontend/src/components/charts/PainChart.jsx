@@ -30,6 +30,8 @@ export default function PainChart({
   const reported = showReported ? series.filter((point) => point.reported !== null) : [];
   const expected = series.filter((point) => point.expected !== null);
   const showExpected = expected.length > 0;
+  // Sin niveles de alerta (la vista del paciente) no hay leyenda ni columna de colores.
+  const showLevels = reported.some((point) => point.color);
   const both = showReported && showExpected;
   const lastDay = series.length ? series[series.length - 1].day : 0;
   // Los datos cambian de identidad en cada render del padre: se redibuja solo si cambian de verdad.
@@ -97,7 +99,7 @@ export default function PainChart({
     <div>
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
         {both && <PainLegend reportedLabel={reportedLabel} expectedLabel={expectedLabel} />}
-        {showReported && reported.length > 0 && (
+        {showLevels && (
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600" aria-hidden="true">
             <span>Punto:</span>
             {Object.entries(LEVEL_FILL).map(([level, fill]) => (
@@ -123,13 +125,13 @@ export default function PainChart({
         {point && (
           <div className="pointer-events-none absolute z-10" style={{ left: tooltipLeft, top: MARGIN.top, width: TOOLTIP_WIDTH }}>
             <ChartTooltipBox title={`Día ${point.day}`}>
-              <PainTooltipContent point={point} showReported={showReported} />
+              <PainTooltipContent point={point} showReported={showReported} showLevels={showLevels} />
             </ChartTooltipBox>
           </div>
         )}
       </div>
 
-      <PainTable series={series} showReported={showReported} showExpected={showExpected} />
+      <PainTable series={series} showReported={showReported} showExpected={showExpected} showLevels={showLevels} />
     </div>
   );
 }

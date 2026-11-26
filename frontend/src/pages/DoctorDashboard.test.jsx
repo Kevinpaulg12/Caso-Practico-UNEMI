@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
 import { page, renderAt } from '../test/utils';
@@ -84,11 +84,12 @@ describe('Panel del doctor', () => {
       mock({ patients: [beto] });
       return { data: { plans_closed: 2, prescriptions_closed: 2 } };
     });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderAt(<DoctorDashboard />);
     await screen.findByText('2 pacientes');
     fireEvent.click(screen.getByRole('button', { name: 'Dar de alta' }));
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Dar de alta' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Alta registrada para Ana Ruiz: se cerraron sus 2 tratamientos');
+    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(screen.getByText('1 paciente')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ana Ruiz/ })).toBeNull();
     expect(screen.getByRole('heading', { level: 2, name: /Beto Paz/ })).toBeInTheDocument();
@@ -119,15 +120,30 @@ describe('Panel del doctor', () => {
     expect(await screen.findByText(/No se encontraron pacientes/)).toBeInTheDocument();
   });
 
-  it('da de alta tras confirmar', async () => {
+  it('da de alta tras confirmar en una ventana propia, no en la del navegador', async () => {
     mock();
     api.post = vi.fn().mockResolvedValue({ data: {} });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const nativeConfirm = vi.spyOn(window, 'confirm');
     renderAt(<DoctorDashboard />);
     await screen.findByText('2 pacientes');
-    fireEvent.click(screen.getByRole('button', { name: 'Dar de alta' }));
+    const trigger = screen.getByRole('button', { name: 'Dar de alta' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('alertdialog', { name: '¿Dar de alta a Ana Ruiz?' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog).toHaveTextContent('podrá pedir una cita');
+    // El foco empieza en la opción segura; Escape cierra sin dar de alta y devuelve el foco.
+    expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(trigger).toHaveFocus();
+    expect(api.post).not.toHaveBeenCalled();
+
+    fireEvent.click(trigger);
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Dar de alta' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Alta registrada');
     expect(api.post).toHaveBeenCalledWith('/patients/1/discharge/');
+    expect(nativeConfirm).not.toHaveBeenCalled();
   });
 
   it('sin pacientes pide seleccionar uno', async () => {

@@ -1,0 +1,428 @@
+{
+  "_nota": "Vademécum odontológico de partida para la receta rápida. Dosis, frecuencias y duraciones son las habituales en adultos y sirven para proponer valores que el odontólogo confirma o cambia en cada receta. Los textos para el paciente son orientativos: el equipo clínico debe revisarlos y adaptarlos antes de usar el sistema con pacientes reales. Las marcas son ejemplos frecuentes; la clínica puede añadir las que use.",
+  "medications": [
+    {
+      "generic": "Paracetamol", "brands": ["Tempra", "Panadol", "Finalin"], "group": "analgesico",
+      "presentations": [
+        {"strength": "500 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "650 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "1 g", "form": "Tableta", "route": "Oral"},
+        {"strength": "160 mg/5 ml", "form": "Jarabe", "route": "Oral"}
+      ],
+      "frequencies": ["Cada 6 horas", "Cada 8 horas"], "default_frequency": "Cada 8 horas", "duration_days": 3,
+      "with_food": "Puede tomarse con o sin alimentos.",
+      "indications": "Alivia el dolor y baja la fiebre después del tratamiento dental.",
+      "mechanism": "Reduce la producción de sustancias que causan dolor y fiebre en el sistema nervioso.",
+      "common_effects": "Es bien tolerado; rara vez causa náuseas o malestar de estómago.",
+      "warning_signs": "Piel u ojos amarillentos, orina oscura o reacción alérgica (ronchas, hinchazón de labios).",
+      "prescription_required": false
+    },
+    {
+      "generic": "Ibuprofeno", "brands": ["Advil", "Buprex", "Motrin"], "group": "aine",
+      "presentations": [
+        {"strength": "400 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "600 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "800 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "100 mg/5 ml", "form": "Suspensión", "route": "Oral"}
+      ],
+      "frequencies": ["Cada 6 horas", "Cada 8 horas"], "default_frequency": "Cada 8 horas", "duration_days": 3,
+      "with_food": "Tómalo con alimentos o leche para proteger el estómago.",
+      "indications": "Calma el dolor dental y reduce la inflamación después del procedimiento.",
+      "mechanism": "Bloquea las enzimas que producen las sustancias de la inflamación y el dolor (prostaglandinas).",
+      "common_effects": "Acidez, dolor o molestias de estómago y náuseas.",
+      "warning_signs": "Heces negras, vómito con sangre, dolor de estómago intenso o hinchazón de la cara.",
+      "prescription_required": false
+    },
+    {
+      "generic": "Ketorolaco", "brands": [], "group": "aine",
+      "presentations": [
+        {"strength": "10 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "20 mg", "form": "Tableta sublingual", "route": "Sublingual"}
+      ],
+      "frequencies": ["Cada 6 horas", "Cada 8 horas"], "default_frequency": "Cada 8 horas", "duration_days": 3,
+      "with_food": "Tómalo con alimentos. No lo uses más de 5 días.",
+      "indications": "Controla el dolor moderado a intenso de corta duración tras una cirugía oral.",
+      "mechanism": "Antiinflamatorio potente que bloquea la producción de prostaglandinas.",
+      "common_effects": "Dolor de estómago, náuseas, dolor de cabeza o somnolencia.",
+      "warning_signs": "Heces negras, sangrado que no se detiene, orina escasa o hinchazón de piernas.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Naproxeno", "brands": ["Apronax"], "group": "aine",
+      "presentations": [
+        {"strength": "250 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "500 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "550 mg", "form": "Tableta", "route": "Oral"}
+      ],
+      "frequencies": ["Cada 12 horas"], "default_frequency": "Cada 12 horas", "duration_days": 5,
+      "with_food": "Tómalo con alimentos.",
+      "indications": "Alivia el dolor y la inflamación de larga duración, por ejemplo tras una cirugía o una endodoncia.",
+      "mechanism": "Antiinflamatorio de acción prolongada que bloquea la producción de prostaglandinas.",
+      "common_effects": "Acidez, molestias de estómago, mareo o somnolencia.",
+      "warning_signs": "Heces negras, vómito con sangre, dificultad para respirar o hinchazón de la cara.",
+      "prescription_required": false
+    },
+    {
+      "generic": "Diclofenaco", "brands": ["Voltaren", "Cataflam"], "group": "aine",
+      "presentations": [
+        {"strength": "50 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "75 mg", "form": "Tableta", "route": "Oral"}
+      ],
+      "frequencies": ["Cada 8 horas", "Cada 12 horas"], "default_frequency": "Cada 12 horas", "duration_days": 3,
+      "with_food": "Tómalo con alimentos.",
+      "indications": "Reduce el dolor y la inflamación después de extracciones u otras cirugías.",
+      "mechanism": "Antiinflamatorio que bloquea la producción de prostaglandinas.",
+      "common_effects": "Dolor de estómago, náuseas, diarrea o mareo.",
+      "warning_signs": "Heces negras, dolor en el pecho, falta de aire o hinchazón de piernas.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Nimesulida", "brands": [], "group": "aine",
+      "presentations": [{"strength": "100 mg", "form": "Tableta", "route": "Oral"}],
+      "frequencies": ["Cada 12 horas"], "default_frequency": "Cada 12 horas", "duration_days": 3,
+      "with_food": "Tómalo después de las comidas. No lo uses más de 15 días.",
+      "indications": "Alivia el dolor agudo y la inflamación de corta duración.",
+      "mechanism": "Antiinflamatorio que bloquea de forma preferente la enzima COX-2 de la inflamación.",
+      "common_effects": "Diarrea, náuseas o molestias de estómago.",
+      "warning_signs": "Piel u ojos amarillentos, orina oscura, cansancio intenso o dolor abdominal fuerte.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Metamizol", "brands": ["Novalgina"], "group": "analgesico",
+      "presentations": [{"strength": "500 mg", "form": "Tableta", "route": "Oral"}],
+      "frequencies": ["Cada 6 horas", "Cada 8 horas"], "default_frequency": "Cada 8 horas", "duration_days": 3,
+      "with_food": "Puede tomarse con o sin alimentos.",
+      "indications": "Calma el dolor intenso y la fiebre cuando otros analgésicos no son suficientes.",
+      "mechanism": "Analgésico que actúa sobre las vías del dolor y la fiebre en el sistema nervioso.",
+      "common_effects": "Baja de la presión arterial o sudoración.",
+      "warning_signs": "Fiebre con dolor de garganta o llagas en la boca, o reacción alérgica.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Etoricoxib", "brands": ["Arcoxia"], "group": "aine",
+      "presentations": [
+        {"strength": "60 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "90 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "120 mg", "form": "Tableta", "route": "Oral"}
+      ],
+      "frequencies": ["Una vez al día"], "default_frequency": "Una vez al día", "duration_days": 3,
+      "with_food": "Puede tomarse con o sin alimentos.",
+      "indications": "Controla el dolor dental agudo después de una cirugía con una sola toma al día.",
+      "mechanism": "Antiinflamatorio que bloquea de forma selectiva la enzima COX-2.",
+      "common_effects": "Hinchazón leve de tobillos, presión arterial alta o acidez.",
+      "warning_signs": "Dolor en el pecho, falta de aire o hinchazón de la cara.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Celecoxib", "brands": ["Celebrex"], "group": "aine",
+      "presentations": [
+        {"strength": "100 mg", "form": "Cápsula", "route": "Oral"},
+        {"strength": "200 mg", "form": "Cápsula", "route": "Oral"}
+      ],
+      "frequencies": ["Cada 12 horas", "Una vez al día"], "default_frequency": "Cada 12 horas", "duration_days": 5,
+      "with_food": "Puede tomarse con o sin alimentos.",
+      "indications": "Reduce el dolor y la inflamación con menos molestias de estómago que otros antiinflamatorios.",
+      "mechanism": "Antiinflamatorio que bloquea de forma selectiva la enzima COX-2.",
+      "common_effects": "Dolor de cabeza, acidez o hinchazón leve de tobillos.",
+      "warning_signs": "Dolor en el pecho, falta de aire o ronchas en la piel.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Dexketoprofeno", "brands": ["Enantyum"], "group": "aine",
+      "presentations": [{"strength": "25 mg", "form": "Tableta", "route": "Oral"}],
+      "frequencies": ["Cada 8 horas"], "default_frequency": "Cada 8 horas", "duration_days": 3,
+      "with_food": "Tómalo con alimentos; para un efecto más rápido, 30 minutos antes de comer.",
+      "indications": "Alivia el dolor dental agudo de intensidad leve a moderada.",
+      "mechanism": "Antiinflamatorio que bloquea la producción de prostaglandinas.",
+      "common_effects": "Náuseas, dolor de estómago o diarrea.",
+      "warning_signs": "Heces negras, vómito con sangre o reacción alérgica.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Tramadol", "brands": ["Tramal"], "group": "analgesico",
+      "presentations": [{"strength": "50 mg", "form": "Cápsula", "route": "Oral"}],
+      "frequencies": ["Cada 8 horas", "Según necesidad"], "default_frequency": "Cada 8 horas", "duration_days": 3,
+      "with_food": "Puede tomarse con o sin alimentos. No tomes alcohol ni conduzcas.",
+      "indications": "Controla el dolor intenso cuando los antiinflamatorios no son suficientes.",
+      "mechanism": "Analgésico opioide que actúa sobre los receptores del dolor del sistema nervioso.",
+      "common_effects": "Náuseas, mareo, somnolencia o estreñimiento.",
+      "warning_signs": "Respiración lenta, somnolencia extrema o convulsiones.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Amoxicilina", "brands": ["Amoxil"], "group": "antibiotico",
+      "presentations": [
+        {"strength": "500 mg", "form": "Cápsula", "route": "Oral"},
+        {"strength": "875 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "250 mg/5 ml", "form": "Suspensión", "route": "Oral"}
+      ],
+      "frequencies": ["Cada 8 horas", "Cada 12 horas"], "default_frequency": "Cada 8 horas", "duration_days": 7,
+      "with_food": "Puede tomarse con o sin alimentos. Completa todos los días indicados aunque te sientas bien.",
+      "indications": "Trata o previene infecciones dentales causadas por bacterias.",
+      "mechanism": "Antibiótico que destruye la pared de las bacterias e impide que se multipliquen.",
+      "common_effects": "Diarrea leve, náuseas o malestar de estómago.",
+      "warning_signs": "Ronchas, hinchazón de labios o lengua, dificultad para respirar o diarrea intensa con sangre.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Amoxicilina + ácido clavulánico", "brands": ["Augmentin", "Curam"], "group": "antibiotico",
+      "presentations": [
+        {"strength": "500/125 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "875/125 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "250/62,5 mg/5 ml", "form": "Suspensión", "route": "Oral"}
+      ],
+      "frequencies": ["Cada 8 horas", "Cada 12 horas"], "default_frequency": "Cada 12 horas", "duration_days": 7,
+      "with_food": "Tómalo al inicio de una comida para que te caiga mejor. Completa todos los días indicados.",
+      "indications": "Trata infecciones dentales en las que la amoxicilina sola podría no ser suficiente.",
+      "mechanism": "La amoxicilina destruye la pared de las bacterias y el ácido clavulánico impide que estas la inactiven.",
+      "common_effects": "Diarrea, náuseas o candidiasis (manchas blancas en la boca).",
+      "warning_signs": "Ronchas, hinchazón de la cara, piel u ojos amarillentos o diarrea intensa con sangre.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Clindamicina", "brands": ["Dalacin C"], "group": "antibiotico",
+      "presentations": [
+        {"strength": "150 mg", "form": "Cápsula", "route": "Oral"},
+        {"strength": "300 mg", "form": "Cápsula", "route": "Oral"}
+      ],
+      "frequencies": ["Cada 6 horas", "Cada 8 horas"], "default_frequency": "Cada 8 horas", "duration_days": 7,
+      "with_food": "Tómala con un vaso lleno de agua y permanece de pie unos minutos.",
+      "indications": "Trata infecciones dentales, sobre todo en personas alérgicas a la penicilina.",
+      "mechanism": "Antibiótico que impide que las bacterias fabriquen las proteínas que necesitan para vivir.",
+      "common_effects": "Diarrea, náuseas o sabor metálico.",
+      "warning_signs": "Diarrea intensa o con sangre, dolor abdominal fuerte o ronchas.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Azitromicina", "brands": ["Zithromax"], "group": "antibiotico",
+      "presentations": [
+        {"strength": "500 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "200 mg/5 ml", "form": "Suspensión", "route": "Oral"}
+      ],
+      "frequencies": ["Una vez al día"], "default_frequency": "Una vez al día", "duration_days": 3,
+      "with_food": "Tómala a la misma hora cada día, con o sin alimentos.",
+      "indications": "Trata infecciones dentales en personas alérgicas a la penicilina.",
+      "mechanism": "Antibiótico que impide que las bacterias fabriquen sus proteínas.",
+      "common_effects": "Diarrea, náuseas o dolor de estómago.",
+      "warning_signs": "Palpitaciones, desmayo, ronchas o piel u ojos amarillentos.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Metronidazol", "brands": ["Flagyl"], "group": "antibiotico",
+      "presentations": [{"strength": "500 mg", "form": "Tableta", "route": "Oral"}],
+      "frequencies": ["Cada 8 horas", "Cada 12 horas"], "default_frequency": "Cada 8 horas", "duration_days": 7,
+      "with_food": "Tómalo con alimentos. No tomes alcohol durante el tratamiento ni 3 días después.",
+      "indications": "Trata infecciones de las encías y de los tejidos alrededor del diente.",
+      "mechanism": "Antibiótico que daña el material genético de las bacterias que viven sin oxígeno.",
+      "common_effects": "Sabor metálico, náuseas u orina más oscura.",
+      "warning_signs": "Hormigueo o adormecimiento de manos y pies, convulsiones o ronchas.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Cefalexina", "brands": ["Keflex"], "group": "antibiotico",
+      "presentations": [
+        {"strength": "500 mg", "form": "Cápsula", "route": "Oral"},
+        {"strength": "250 mg/5 ml", "form": "Suspensión", "route": "Oral"}
+      ],
+      "frequencies": ["Cada 6 horas", "Cada 8 horas"], "default_frequency": "Cada 6 horas", "duration_days": 7,
+      "with_food": "Puede tomarse con o sin alimentos. Completa todos los días indicados.",
+      "indications": "Trata infecciones dentales y de los tejidos blandos de la boca.",
+      "mechanism": "Antibiótico que destruye la pared de las bacterias.",
+      "common_effects": "Diarrea, náuseas o malestar de estómago.",
+      "warning_signs": "Ronchas, hinchazón de la cara o diarrea intensa con sangre.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Claritromicina", "brands": ["Klaricid"], "group": "antibiotico",
+      "presentations": [{"strength": "500 mg", "form": "Tableta", "route": "Oral"}],
+      "frequencies": ["Cada 12 horas"], "default_frequency": "Cada 12 horas", "duration_days": 7,
+      "with_food": "Puede tomarse con o sin alimentos.",
+      "indications": "Trata infecciones dentales en personas alérgicas a la penicilina.",
+      "mechanism": "Antibiótico que impide que las bacterias fabriquen sus proteínas.",
+      "common_effects": "Sabor amargo, náuseas o diarrea.",
+      "warning_signs": "Palpitaciones, desmayo, ronchas o piel u ojos amarillentos.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Doxiciclina", "brands": ["Vibramicina"], "group": "antibiotico",
+      "presentations": [{"strength": "100 mg", "form": "Cápsula", "route": "Oral"}],
+      "frequencies": ["Cada 12 horas", "Una vez al día"], "default_frequency": "Cada 12 horas", "duration_days": 7,
+      "with_food": "Tómala con un vaso lleno de agua y no te acuestes en la siguiente hora. Evita la leche cerca de la toma y el sol directo.",
+      "indications": "Apoya el tratamiento de la periodontitis y de infecciones de las encías.",
+      "mechanism": "Antibiótico que impide que las bacterias fabriquen sus proteínas y reduce la destrucción de la encía.",
+      "common_effects": "Náuseas, acidez o sensibilidad de la piel al sol.",
+      "warning_signs": "Dolor al tragar, quemaduras solares intensas o dolor de cabeza fuerte con visión borrosa.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Dexametasona", "brands": ["Decadron"], "group": "corticoide",
+      "presentations": [
+        {"strength": "4 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "8 mg", "form": "Tableta", "route": "Oral"}
+      ],
+      "frequencies": ["Una vez al día"], "default_frequency": "Una vez al día", "duration_days": 2,
+      "with_food": "Tómala en la mañana, con el desayuno.",
+      "indications": "Reduce la hinchazón y la limitación para abrir la boca después de una cirugía.",
+      "mechanism": "Corticoide que frena la respuesta inflamatoria del cuerpo.",
+      "common_effects": "Aumento del apetito, dificultad para dormir o subida del azúcar en la sangre.",
+      "warning_signs": "Sed intensa, orina muy frecuente, fiebre o signos de infección.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Prednisona", "brands": [], "group": "corticoide",
+      "presentations": [
+        {"strength": "5 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "20 mg", "form": "Tableta", "route": "Oral"},
+        {"strength": "50 mg", "form": "Tableta", "route": "Oral"}
+      ],
+      "frequencies": ["Una vez al día"], "default_frequency": "Una vez al día", "duration_days": 3,
+      "with_food": "Tómala en la mañana, con el desayuno.",
+      "indications": "Controla la inflamación intensa de la boca o después de una cirugía.",
+      "mechanism": "Corticoide que frena la respuesta inflamatoria del cuerpo.",
+      "common_effects": "Aumento del apetito, cambios de ánimo o dificultad para dormir.",
+      "warning_signs": "Sed intensa, orina muy frecuente, fiebre o signos de infección.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Triamcinolona en orabase", "brands": ["Kenalog Orabase"], "group": "corticoide",
+      "presentations": [{"strength": "0,1 %", "form": "Pasta oral", "route": "Tópica bucal"}],
+      "frequencies": ["Cada 8 horas", "Cada 12 horas"], "default_frequency": "Cada 8 horas", "duration_days": 7,
+      "with_food": "Aplícala después de comer y al acostarte; no comas ni bebas en los 30 minutos siguientes.",
+      "indications": "Alivia y ayuda a cicatrizar aftas y llagas de la boca.",
+      "mechanism": "Corticoide de uso local que reduce la inflamación de la mucosa.",
+      "common_effects": "Ardor leve al aplicarla.",
+      "warning_signs": "La llaga no mejora en 7 días o aparecen manchas blancas en la boca.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Clorhexidina", "brands": ["Perioxidin", "Plac Out"], "group": "antiseptico",
+      "presentations": [{"strength": "0,12 %", "form": "Enjuague bucal", "route": "Bucal"}],
+      "frequencies": ["Cada 12 horas"], "default_frequency": "Cada 12 horas", "duration_days": 7,
+      "with_food": "Haz buches con 15 ml durante 30 segundos y escupe; no comas, bebas ni te cepilles en los 30 minutos siguientes.",
+      "indications": "Desinfecta la boca y ayuda a que la herida o la encía cicatricen.",
+      "mechanism": "Antiséptico que destruye las bacterias de la boca y se adhiere a dientes y encías durante horas.",
+      "common_effects": "Manchas oscuras en dientes y lengua (se retiran con limpieza) y cambio del sabor.",
+      "warning_signs": "Ardor intenso, hinchazón de la boca o reacción alérgica.",
+      "prescription_required": false
+    },
+    {
+      "generic": "Cloruro de cetilpiridinio", "brands": ["Cepacol"], "group": "antiseptico",
+      "presentations": [{"strength": "0,05 %", "form": "Enjuague bucal", "route": "Bucal"}],
+      "frequencies": ["Cada 12 horas"], "default_frequency": "Cada 12 horas", "duration_days": 14,
+      "with_food": "Haz buches con 15 ml durante 30 segundos y escupe.",
+      "indications": "Reduce la placa bacteriana y el mal aliento.",
+      "mechanism": "Antiséptico que daña la membrana de las bacterias de la boca.",
+      "common_effects": "Manchas leves en los dientes o ardor pasajero.",
+      "warning_signs": "Irritación persistente o reacción alérgica.",
+      "prescription_required": false
+    },
+    {
+      "generic": "Bencidamina", "brands": ["Tantum Verde"], "group": "aine",
+      "presentations": [{"strength": "0,15 %", "form": "Enjuague bucal", "route": "Bucal"}],
+      "frequencies": ["Cada 8 horas", "Cada 6 horas"], "default_frequency": "Cada 8 horas", "duration_days": 7,
+      "with_food": "Haz buches con 15 ml durante 30 segundos y escupe; no lo tragues.",
+      "indications": "Alivia el dolor y la inflamación de encías, llagas o después de una cirugía.",
+      "mechanism": "Antiinflamatorio y anestésico de uso local sobre la mucosa de la boca.",
+      "common_effects": "Adormecimiento o ardor pasajero de la boca.",
+      "warning_signs": "Ronchas, hinchazón o dificultad para respirar.",
+      "prescription_required": false
+    },
+    {
+      "generic": "Nistatina", "brands": ["Micostatin"], "group": "antifungico",
+      "presentations": [{"strength": "100.000 UI/ml", "form": "Suspensión", "route": "Oral"}],
+      "frequencies": ["Cada 6 horas"], "default_frequency": "Cada 6 horas", "duration_days": 14,
+      "with_food": "Mantén 5 ml en la boca el mayor tiempo posible y luego trágalos, después de las comidas.",
+      "indications": "Trata la candidiasis oral (manchas blancas por hongos) y la estomatitis por prótesis.",
+      "mechanism": "Antifúngico que daña la membrana de los hongos.",
+      "common_effects": "Náuseas o diarrea leve.",
+      "warning_signs": "Ronchas o irritación intensa de la boca.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Miconazol", "brands": ["Daktarin"], "group": "antifungico",
+      "presentations": [{"strength": "2 %", "form": "Gel oral", "route": "Tópica bucal"}],
+      "frequencies": ["Cada 6 horas"], "default_frequency": "Cada 6 horas", "duration_days": 14,
+      "with_food": "Aplícalo después de las comidas y mantenlo en la boca antes de tragarlo. Si usas prótesis, aplícalo también sobre ella.",
+      "indications": "Trata la candidiasis oral y la irritación por hongos bajo la prótesis.",
+      "mechanism": "Antifúngico que impide que los hongos formen su membrana.",
+      "common_effects": "Náuseas o sabor desagradable.",
+      "warning_signs": "Moretones o sangrado inusual si tomas anticoagulantes.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Fluconazol", "brands": ["Diflucan"], "group": "antifungico",
+      "presentations": [
+        {"strength": "50 mg", "form": "Cápsula", "route": "Oral"},
+        {"strength": "150 mg", "form": "Cápsula", "route": "Oral"}
+      ],
+      "frequencies": ["Una vez al día"], "default_frequency": "Una vez al día", "duration_days": 7,
+      "with_food": "Puede tomarse con o sin alimentos.",
+      "indications": "Trata la candidiasis oral que no mejora con tratamientos locales.",
+      "mechanism": "Antifúngico que impide que los hongos formen su membrana.",
+      "common_effects": "Dolor de cabeza, náuseas o dolor abdominal.",
+      "warning_signs": "Piel u ojos amarillentos, palpitaciones o ronchas.",
+      "prescription_required": true
+    },
+    {
+      "generic": "Benzocaína", "brands": ["Orajel"], "group": "anestesico_topico",
+      "presentations": [{"strength": "20 %", "form": "Gel", "route": "Tópica bucal"}],
+      "frequencies": ["Cada 8 horas", "Según necesidad"], "default_frequency": "Según necesidad", "duration_days": 3,
+      "with_food": "Aplica una pequeña cantidad sobre la zona; no comas hasta que pase el adormecimiento. No usar en menores de 2 años.",
+      "indications": "Adormece por poco tiempo llagas, encías irritadas o roces del aparato.",
+      "mechanism": "Anestésico local que bloquea los nervios de la zona donde se aplica.",
+      "common_effects": "Adormecimiento o ardor pasajero.",
+      "warning_signs": "Labios o uñas azulados, falta de aire o cansancio intenso (metahemoglobinemia).",
+      "prescription_required": false
+    },
+    {
+      "generic": "Lidocaína", "brands": ["Xylocaína"], "group": "anestesico_topico",
+      "presentations": [
+        {"strength": "2 %", "form": "Gel viscoso", "route": "Tópica bucal"},
+        {"strength": "5 %", "form": "Pomada", "route": "Tópica bucal"}
+      ],
+      "frequencies": ["Cada 8 horas", "Según necesidad"], "default_frequency": "Según necesidad", "duration_days": 3,
+      "with_food": "Aplícala antes de comer si el dolor no te deja; espera a que pase el adormecimiento para masticar con cuidado.",
+      "indications": "Alivia el dolor de llagas o de la mucosa irritada.",
+      "mechanism": "Anestésico local que bloquea los nervios de la zona donde se aplica.",
+      "common_effects": "Adormecimiento o ardor pasajero.",
+      "warning_signs": "Mareo, zumbido de oídos, latidos irregulares o dificultad para tragar.",
+      "prescription_required": false
+    },
+    {
+      "generic": "Ácido hialurónico", "brands": ["Gengigel"], "group": "otro",
+      "presentations": [{"strength": "0,2 %", "form": "Gel", "route": "Tópica bucal"}],
+      "frequencies": ["Cada 8 horas"], "default_frequency": "Cada 8 horas", "duration_days": 7,
+      "with_food": "Aplícalo después de comer y del cepillado; no comas ni bebas en los 30 minutos siguientes.",
+      "indications": "Ayuda a cicatrizar encías, heridas y llagas de la boca.",
+      "mechanism": "Forma una capa protectora que favorece la reparación de la encía.",
+      "common_effects": "Es bien tolerado.",
+      "warning_signs": "Reacción alérgica o una herida que no mejora.",
+      "prescription_required": false
+    },
+    {
+      "generic": "Omeprazol", "brands": ["Losec"], "group": "otro",
+      "presentations": [{"strength": "20 mg", "form": "Cápsula", "route": "Oral"}],
+      "frequencies": ["Una vez al día"], "default_frequency": "Una vez al día", "duration_days": 5,
+      "with_food": "Tómalo en ayunas, 30 minutos antes del desayuno.",
+      "indications": "Protege el estómago mientras tomas antiinflamatorios.",
+      "mechanism": "Reduce la producción de ácido en el estómago.",
+      "common_effects": "Dolor de cabeza, diarrea o gases.",
+      "warning_signs": "Diarrea intensa o persistente, o ronchas.",
+      "prescription_required": false
+    },
+    {
+      "generic": "Aciclovir", "brands": ["Zovirax"], "group": "otro",
+      "presentations": [
+        {"strength": "5 %", "form": "Crema", "route": "Tópica"},
+        {"strength": "400 mg", "form": "Tableta", "route": "Oral"}
+      ],
+      "frequencies": ["Cada 4 horas", "Cada 8 horas"], "default_frequency": "Cada 4 horas", "duration_days": 5,
+      "with_food": "La crema se aplica con las manos limpias sobre la lesión; las tabletas, con abundante agua.",
+      "indications": "Trata el herpes labial y las lesiones de la boca causadas por el virus del herpes.",
+      "mechanism": "Antiviral que impide que el virus del herpes se multiplique.",
+      "common_effects": "Ardor leve en la zona (crema), náuseas o dolor de cabeza (tabletas).",
+      "warning_signs": "Lesiones que se extienden al ojo, fiebre alta o ronchas.",
+      "prescription_required": true
+    }
+  ]
+}

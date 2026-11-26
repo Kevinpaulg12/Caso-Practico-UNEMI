@@ -3,10 +3,13 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { describeNextControl } from '../services/consultationRules';
 import DoctorLayout from '../components/DoctorLayout';
+import { useAuth } from '../context/AuthContext';
+import ConfirmDialog from '../components/ConfirmDialog';
+import IconButton from '../components/IconButton';
 import PatientTreatments from '../components/PatientTreatments';
 import AISummaryCard from '../components/AISummaryCard';
 import Loading, { SkeletonCard, SkeletonRows } from '../components/Skeleton';
-import { IconSearch, IconAlertTriangle, IconClipboard } from '../components/Icons';
+import { IconAlertTriangle, IconArrowRight, IconCheck, IconCheckCircle, IconClipboard, IconHistory, IconSearch } from '../components/Icons';
 // La librería de gráficos solo se descarga en el panel del doctor.
 const EvolutionChart = lazy(() => import('../components/EvolutionChart'));
 
@@ -83,16 +86,18 @@ function PatientCard({ patient, selected, onSelect }) {
                   : 'bg-slate-100 text-slate-700'
               }`}
             >
-              Último EVA: {patient.latest_report.pain_level}
+              {patient.latest_report.pain_level == null ? 'Sin EVA hoy' : `Último EVA: ${patient.latest_report.pain_level}`}
             </span>
           ) : (
-            <span className="text-[10px] text-slate-500">Sin reportes registrados</span>
+            <span className="text-[10px] text-slate-500">Aún no conversa con el asistente</span>
           )}
         </span>
         <span className={`text-[11px] font-bold ${selected ? 'text-blue-600' : 'text-slate-500'}`}>
           {patient.next_control
             ? <span className={patient.next_control.overdue ? 'text-amber-700' : undefined}>{describeNextControl(patient.next_control)}</span>
-            : selected ? 'Seleccionado ●' : 'Ver ficha →'}
+            : selected
+              ? <span className="inline-flex items-center gap-1"><IconCheck className="h-3.5 w-3.5" />Seleccionado</span>
+              : <span className="inline-flex items-center gap-1">Ver ficha<IconArrowRight className="h-3.5 w-3.5" /></span>}
         </span>
       </span>
     </button>
@@ -102,11 +107,13 @@ function PatientCard({ patient, selected, onSelect }) {
 const REFRESH_MS = 60000;
 
 export default function DoctorDashboard() {
+  const { user } = useAuth() ?? {};
   const [roster, setRoster] = useState([]);
   const [results, setResults] = useState(null);
   const [search, setSearch] = useState('');
   const [loadError, setLoadError] = useState(false);
   const [discharging, setDischarging] = useState(false);
+  const [confirmDischarge, setConfirmDischarge] = useState(false);
   const [dischargeMessage, setDischargeMessage] = useState('');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [specialty, setSpecialty] = useState('');
@@ -162,7 +169,6 @@ export default function DoctorDashboard() {
   }, [search]);
 
   const dischargePatient = async () => {
-    if (!window.confirm('¿Dar de alta a este paciente? Se cerrarán sus recetas y tratamientos activos.')) return;
     setDischarging(true);
     setDischargeMessage('');
     const name = selectedPatient.full_name || selectedPatient.username;
@@ -181,6 +187,7 @@ export default function DoctorDashboard() {
       setDischargeMessage(error.response?.data?.detail || 'No se pudo registrar el alta.');
     } finally {
       setDischarging(false);
+      setConfirmDischarge(false);
     }
   };
 
@@ -193,7 +200,7 @@ export default function DoctorDashboard() {
 
   if (loading) {
     return (
-      <DoctorLayout title="Pacientes Activos" subtitle="Seguimiento de tratamientos odontológicos">
+      <DoctorLayout title="Monitoreo" subtitle="Seguimiento de tratamientos odontológicos">
         <Loading label="Cargando expedientes clínicos..." className="grid grid-cols-1 gap-6 lg:grid-cols-[340px_1fr]">
           <SkeletonRows rows={5} />
           <div className="space-y-6">
@@ -209,9 +216,16 @@ export default function DoctorDashboard() {
 
   return (
     <DoctorLayout
-      title="Monitor Clínico de Pacientes"
+      title="Monitoreo"
       subtitle="Triaje con PLN y seguimiento de tratamientos odontológicos"
     >
+      {user && !user.email && (
+        <p role="alert" className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+          <IconAlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1">No recibirás por correo las alertas rojas ni tu agenda del día: aún no registras tu correo.</span>
+          <Link to="/mi-cuenta" className="font-bold underline">Añadirlo en Mi cuenta</Link>
+        </p>
+      )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[340px_1fr]">
         {/* Left column: Patients roster */}
         <section aria-label="Pacientes en seguimiento" className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto">
@@ -332,15 +346,9 @@ export default function DoctorDashboard() {
                   >
                     {selectedPatient.has_active_treatment ? 'Tratamiento activo' : 'Sin tratamiento'}
                   </span>
+                  <IconButton to={`/panel-doctor/pacientes/${selectedPatient.id}/historia`} icon={IconHistory} label="Historia clínica" tone="primary" />
                   {selectedPatient.has_active_treatment && (
-                    <button
-                      type="button"
-                      onClick={dischargePatient}
-                      disabled={discharging}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      {discharging ? 'Registrando...' : 'Dar de alta'}
-                    </button>
+                    <IconButton icon={IconCheckCircle} label="Dar de alta" tone="success" busy={discharging} disabled={discharging} onClick={() => setConfirmDischarge(true)} />
                   )}
                 </div>
               </header>
@@ -387,6 +395,19 @@ export default function DoctorDashboard() {
           )}
         </section>
       </div>
+      <ConfirmDialog
+        open={confirmDischarge && Boolean(selectedPatient)}
+        title={`¿Dar de alta a ${selectedPatient?.full_name || selectedPatient?.username || 'este paciente'}?`}
+        confirmLabel="Dar de alta"
+        icon={IconCheckCircle}
+        tone="primary"
+        busy={discharging}
+        onConfirm={dischargePatient}
+        onCancel={() => setConfirmDischarge(false)}
+      >
+        Se cerrarán sus recetas y tratamientos activos y saldrá de Monitoreo. Seguirá viendo sus tratamientos
+        anteriores en su portal y podrá pedir una cita desde el asistente. Lo encontrarás en Historial y Altas.
+      </ConfirmDialog>
     </DoctorLayout>
   );
 }

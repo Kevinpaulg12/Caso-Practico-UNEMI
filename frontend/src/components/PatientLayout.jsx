@@ -1,7 +1,7 @@
 import PanelLayout from './PanelLayout';
 import { PATIENT_SECTIONS, patientSectionPath } from './patientSections';
 
-/** Portal del paciente: el mismo menú lateral que usan el odontólogo y el administrador. */
+/** Portal del paciente: el mismo menú lateral que los demás roles. El contacto está junto al chat. */
 export default function PatientLayout({ section, badges = {}, title, subtitle, children }) {
   const current = PATIENT_SECTIONS.find((item) => item.id === section);
   return (

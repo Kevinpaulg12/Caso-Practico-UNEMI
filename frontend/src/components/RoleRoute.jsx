@@ -21,7 +21,7 @@ export default function RoleRoute({ role, children }) {
   }
 
   if (currentRole !== role) {
-    if (currentRole === 'DOC') return <Navigate to="/panel-doctor" replace />;
+    if (currentRole === 'DOC') return <Navigate to="/panel-doctor/monitoreo" replace />;
     if (currentRole === 'ADM') return <Navigate to="/panel-admin" replace />;
     return <Navigate to="/panel-paciente" replace />;
   }

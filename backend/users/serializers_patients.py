@@ -1,11 +1,10 @@
-import secrets
-
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework import serializers
 
 from medical_monitor.consultations import next_control_payload
 
+from .credentials import temporary_password as new_temporary_password
 from .models import UserProfile, title_case_name
 from .validators import validate_birth_date_value, validate_phone_value
 
@@ -19,12 +18,15 @@ class PatientCreateSerializer(serializers.Serializer):
     birth_date = serializers.DateField()
     phone = serializers.CharField(max_length=30)
     emergency_contact = serializers.CharField(max_length=30)
-    # Opcional: si se registra, el paciente recibe sus recordatorios también por correo.
-    email = serializers.EmailField(required=False, allow_blank=True, max_length=254)
+    # Obligatorio: las credenciales temporales y los recordatorios se envían a este correo.
+    email = serializers.EmailField(max_length=254, error_messages={
+        'required': 'Indica el correo del paciente: allí recibirá sus credenciales de acceso.',
+        'blank': 'Indica el correo del paciente: allí recibirá sus credenciales de acceso.',
+    })
 
     def validate_email(self, value):
         value = value.strip().lower()
-        if value and User.objects.filter(email__iexact=value).exists():
+        if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError('Ya existe una cuenta con este correo.')
         return value
 
@@ -63,7 +65,7 @@ class PatientCreateSerializer(serializers.Serializer):
     def create(self, validated_data):
         national_id = validated_data['national_id']
         username = f'paciente.{national_id}'
-        temporary_password = f'Paciente-{secrets.token_urlsafe(9)}!'
+        temporary_password = new_temporary_password()
         user = User.objects.create_user(
             username=username,
             password=temporary_password,

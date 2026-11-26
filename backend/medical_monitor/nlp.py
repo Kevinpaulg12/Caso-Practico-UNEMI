@@ -86,7 +86,12 @@ CARE = {
     'Alineadores': [['use|uso|puse|lleve|llevo', 'los?', 'alineador|alineadores']],
     'Férula o retenedor': [['use|uso|puse|lleve|llevo', 'la|el', 'ferula|retenedor']],
     'Frío local': ['hielo|compresa|compresas'],
-    'Medicación': [['tome|tomo|tomé', 'la|el|las|los|mis?', 'pastilla|pastillas|medicina|medicinas|medicamento|medicamentos|antibiotico|analgesico']],
+    'Medicación': [
+        ['tome|tomo|tomé', 'la|el|las|los|mis?|mi', 'pastilla|pastillas|medicina|medicinas|medicamento|medicamentos|'
+         'medicacion|antibiotico|antibioticos|analgesico|analgesicos|tableta|tabletas|capsula|capsulas|dosis|'
+         'ibuprofeno|paracetamol|amoxicilina|receta'],
+        ['ya', 'me', 'la|las|lo|los', 'tome'],
+    ],
 }
 WORD_NUMBERS = {'un': 1, 'una': 1, 'dos': 2, 'tres': 3, 'cuatro': 4, 'cinco': 5, 'seis': 6, 'siete': 7,
                 'ocho': 8, 'diez': 10, 'quince': 15, 'varios': 3, 'varias': 3, 'unos': 2, 'unas': 2}

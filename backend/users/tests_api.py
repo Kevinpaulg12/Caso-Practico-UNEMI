@@ -13,6 +13,7 @@ from rest_framework.test import APITestCase
 from medical_monitor.models import PatientReport, Prescription, TreatmentPlan
 
 from .models import User, UserProfile
+from .tests_support import password_from_mail
 
 STRONG_PASSWORD = 'New-secure-pass-456!'
 VALID_PATIENT = {
@@ -22,6 +23,7 @@ VALID_PATIENT = {
     'birth_date': '1995-05-10',
     'phone': '0991234567',
     'emergency_contact': '0987654321',
+    'email': 'ana.lopez@example.com',
 }
 
 
@@ -165,6 +167,19 @@ class PatientProfileTests(BaseTestCase):
         profile.refresh_from_db()
         self.assertEqual(profile.primary_doctor, self.doctor)
 
+    def test_patient_sees_the_contact_of_their_dentist(self):
+        self.doctor.first_name, self.doctor.last_name, self.doctor.email = 'Laura', 'Mora', 'laura@clinica.ec'
+        self.doctor.save()
+        UserProfile.objects.create(user=self.doctor, phone='0991112233')
+        UserProfile.objects.create(user=self.patient, primary_doctor=self.doctor)
+        self.login(self.patient)
+        contact = self.client.get('/api/patient-profile/').data['results'][0]['doctor_contact']
+        self.assertEqual(contact, {'name': 'Laura Mora', 'phone': '0991112233', 'email': 'laura@clinica.ec'})
+
+    def test_doctor_contact_is_empty_without_an_assigned_dentist(self):
+        self.login(self.patient)
+        self.assertIsNone(self.client.get('/api/patient-profile/').data['results'][0]['doctor_contact'])
+
     def test_bug24_national_id_cannot_be_changed_by_the_patient(self):
         # BUG-24: /account/ protege la cédula, pero /patient-profile/ permite cambiarla.
         profile = UserProfile.objects.create(user=self.patient, national_id='1111111111')
@@ -238,11 +253,15 @@ class ChangePasswordTests(BaseTestCase):
 class PatientRegistrationTests(BaseTestCase):
     def register(self, user=None, **overrides):
         self.login(user or self.doctor)
-        return self.client.post('/api/patients/', {**VALID_PATIENT, **overrides}, format='json')
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post('/api/patients/', {**VALID_PATIENT, **overrides}, format='json')
+        if response.status_code == 201:
+            response.data['temporary_password'] = password_from_mail()
+        return response
 
     def test_creates_patient_with_unique_temporary_password(self):
         first = self.register()
-        second = self.register(national_id='1723456780')
+        second = self.register(national_id='1723456780', email='otra@example.com')
         self.assertEqual(first.status_code, 201)
         self.assertNotEqual(first.data['temporary_password'], second.data['temporary_password'])
         patient = User.objects.get(username='paciente.1723456789')
@@ -269,6 +288,8 @@ class PatientRegistrationTests(BaseTestCase):
             'birth_date': ['', 'ayer', '2099-01-01', old],
             'phone': ['', '123', 'abcdefgh', '1' * 31],
             'emergency_contact': ['', '123'],
+            # Obligatorio: allí recibe sus credenciales.
+            'email': ['', 'no-es-correo'],
         }
         for field, values in cases.items():
             for value in values:
@@ -427,3 +448,49 @@ class PatientSearchTests(BaseTestCase):
         self.patient.save()
         Prescription.objects.create(doctor=self.doctor, patient=self.patient, details='x')
         self.assertEqual(len(self.search(search='Unico').data), 1)
+
+
+class CredentialsEmailTests(BaseTestCase):
+    def register(self, **overrides):
+        self.login(self.doctor)
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post('/api/patients/', {**VALID_PATIENT, **overrides}, format='json')
+
+    def test_credentials_are_sent_by_institutional_email(self):
+        from django.core import mail
+        response = self.register()
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual((message.to, message.subject), (['ana.lopez@example.com'], 'DentalSense: tus credenciales de acceso'))
+        self.assertIn('Usuario: paciente.1723456789', message.body)
+        password = password_from_mail()
+        patient = User.objects.get(pk=response.data['id'])
+        self.assertTrue(patient.check_password(password))
+        self.assertIsNotNone(patient.profile.credentials_sent_at)
+        status = self.client.get(f'/api/patients/{patient.pk}/credentials/').data
+        self.assertEqual((status['email'], status['error']), ('a***@example.com', ''))
+
+    def test_an_smtp_failure_is_recorded_and_can_be_resent(self):
+        from unittest.mock import patch as mock_patch
+
+        from django.core import mail
+        with mock_patch('users.credentials.send_mail', side_effect=ConnectionRefusedError):
+            response = self.register()
+        patient = User.objects.get(pk=response.data['id'])
+        status = self.client.get(f'/api/patients/{patient.pk}/credentials/').data
+        self.assertEqual((status['sent_at'], status['error']), (None, 'No se pudo enviar el correo: ConnectionRefusedError'))
+        with self.captureOnCommitCallbacks(execute=True):
+            resent = self.client.post(f'/api/patients/{patient.pk}/credentials/')
+        self.assertEqual(resent.status_code, 202)
+        patient.refresh_from_db()
+        self.assertTrue(patient.check_password(password_from_mail()))
+        self.assertTrue(patient.must_change_password)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_only_the_treating_dentist_resends(self):
+        response = self.register()
+        other = User.objects.create_user('otro', password='x', role=User.Roles.DOCTOR)
+        self.login(other)
+        self.assertEqual(self.client.post(f'/api/patients/{response.data["id"]}/credentials/').status_code, 404)
+        self.login(self.patient)
+        self.assertEqual(self.client.post(f'/api/patients/{response.data["id"]}/credentials/').status_code, 403)

@@ -18,12 +18,25 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(() => !!localStorage.getItem('access_token'));
   const navigate = useNavigate();
 
+  // El cierre de sesión necesita el perfil actual sin volver a crear la función en cada cambio.
+  const userRef = useRef(null);
+  useEffect(() => { userRef.current = user; }, [user]);
+
+  // Usuario que tenía esta pestaña antes de que otra pestaña cambiara la sesión (null si no hubo cambio).
+  const switchedFrom = useRef(undefined);
+
   useEffect(() => {
     if (!token) return;
 
     api.get('/me/')
       .then((response) => {
         setUser(response.data);
+        // Otra pestaña inició sesión con otra cuenta: esta pestaña pasa al panel de esa cuenta en lugar
+        // de seguir mostrando el anterior y enviar acciones con un token ajeno (respuestas 403).
+        if (switchedFrom.current !== undefined) {
+          if (switchedFrom.current !== response.data.username) navigate(homePath(response.data), { replace: true });
+          switchedFrom.current = undefined;
+        }
         if (response.data.role) {
           setRole(response.data.role);
           localStorage.setItem('user_role', response.data.role);
@@ -40,7 +53,25 @@ export function AuthProvider({ children }) {
         setUser(null);
       })
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, navigate]);
+
+  // El token vive en localStorage, compartido por todas las pestañas: se sigue su cambio.
+  useEffect(() => {
+    const onStorage = (event) => {
+      if (event.key !== 'access_token' || event.newValue === event.oldValue) return;
+      if (!event.newValue) {
+        setToken(null);
+        setRole(null);
+        setUser(null);
+        navigate('/login', { replace: true });
+        return;
+      }
+      switchedFrom.current = userRef.current?.username ?? null;
+      setToken(event.newValue);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [navigate]);
 
   const login = async (username, password) => {
     try {
@@ -76,10 +107,6 @@ export function AuthProvider({ children }) {
       };
     }
   };
-
-  // El cierre de sesión necesita el perfil actual sin volver a crear la función en cada cambio.
-  const userRef = useRef(null);
-  useEffect(() => { userRef.current = user; }, [user]);
 
   // Tras aceptar los términos o cambiar la contraseña, el perfil se actualiza sin pedirlo de nuevo.
   const updateUser = useCallback((changes) => {

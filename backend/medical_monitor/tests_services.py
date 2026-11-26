@@ -2,11 +2,8 @@
 
 Los identificadores BUG-nn remiten a defectos ya corregidos: estas pruebas evitan que vuelvan.
 """
-import http.client
 import json
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
-from urllib.error import URLError
 
 from django.test import SimpleTestCase, TestCase
 
@@ -16,24 +13,7 @@ from .services import (
     evaluate_patient_status,
     evaluate_treatment_plan,
     find_medication_guide,
-    parse_medication_strength,
-    search_medications,
 )
-
-
-def rxnav_response(names):
-    payload = {
-        'drugGroup': {
-            'conceptGroup': [
-                {'conceptProperties': [{'name': name, 'rxcui': str(i)} for i, name in enumerate(names)]},
-                {'tty': 'SBD'},
-            ],
-        },
-    }
-    response = MagicMock()
-    response.read.return_value = json.dumps(payload).encode('utf-8')
-    response.__enter__.return_value = response
-    return response
 
 
 class AnalyzeMedicalTextTests(SimpleTestCase):
@@ -156,90 +136,6 @@ class EvaluateTreatmentPlanTests(SimpleTestCase):
 
     def test_other_procedures_are_low(self):
         self.assertEqual(evaluate_treatment_plan('Limpieza', 'Profilaxis', '', '')['severity'], 'Baja')
-
-
-class ParseMedicationStrengthTests(SimpleTestCase):
-    def test_extracts_strength(self):
-        cases = [
-            ('Acetaminophen 500 MG Oral Tablet', '500 MG'),
-            ('Ibuprofeno 400mg', '400 mg'),
-            ('Amoxicillin 0.5 g', '0.5 g'),
-            ('Lidocaína 2,5 ml', '2,5 ml'),
-            ('Vitamina 50 mcg', '50 mcg'),
-        ]
-        for name, expected in cases:
-            with self.subTest(name=name):
-                self.assertEqual(parse_medication_strength(name), expected)
-
-    def test_without_strength_returns_empty(self):
-        for name in ('Paracetamol', '', None):
-            with self.subTest(name=name):
-                self.assertEqual(parse_medication_strength(name), '')
-
-    def test_bug05_percentage_strength_is_parsed(self):
-        # BUG-05: \b después de % nunca coincide; la clorhexidina al 0.12 % queda sin concentración.
-        self.assertEqual(parse_medication_strength('Chlorhexidine 0.12 % Mouthwash'), '0.12 %')
-
-
-class SearchMedicationsTests(TestCase):
-    def setUp(self):
-        MedicationGuide.objects.all().delete()
-        MedicationGuide.objects.create(
-            name='Paracetamol',
-            search_terms=['paracetamol', 'acetaminofén'],
-            common_effects='-', what_to_do='-', warning_signs='-',
-        )
-
-    @patch('medical_monitor.services.urlopen')
-    def test_short_term_does_not_call_the_network(self, urlopen):
-        for term in ('', ' ', 'a', None):
-            with self.subTest(term=term):
-                self.assertEqual(search_medications(term)['items'], [])
-        urlopen.assert_not_called()
-
-    @patch('medical_monitor.services.urlopen')
-    def test_returns_rxnav_items_deduplicated_and_limited(self, urlopen):
-        names = ['Drug A', 'drug a'] + [f'Drug {n}' for n in range(20)]
-        urlopen.return_value = rxnav_response(names)
-        result = search_medications('drug')
-        self.assertEqual(result['source'], 'RxNav')
-        self.assertEqual(len(result['items']), 8)
-        self.assertEqual(len({item['name'].casefold() for item in result['items']}), 8)
-
-    @patch('medical_monitor.services.urlopen')
-    def test_term_is_url_encoded_and_truncated(self, urlopen):
-        urlopen.return_value = rxnav_response([])
-        search_medications('  ácido   ' + 'x' * 200)
-        url = urlopen.call_args.args[0].full_url
-        self.assertIn('%C3%A1cido%20x', url)
-        self.assertLess(len(url), 200)
-
-    @patch('medical_monitor.services.urlopen')
-    def test_falls_back_to_local_catalog(self, urlopen):
-        for error in (URLError('down'), TimeoutError(), OSError()):
-            with self.subTest(error=error):
-                urlopen.side_effect = error
-                result = search_medications('acetamin')
-                self.assertEqual(result['source'], 'local')
-                self.assertEqual(result['items'][0]['name'], 'Paracetamol')
-                self.assertEqual(result['items'][0]['source'], 'Catálogo local')
-
-    @patch('medical_monitor.services.urlopen')
-    def test_invalid_json_falls_back_to_local_catalog(self, urlopen):
-        response = MagicMock()
-        response.read.return_value = b'<html>error</html>'
-        response.__enter__.return_value = response
-        urlopen.return_value = response
-        self.assertEqual(search_medications('paracet')['source'], 'local')
-
-    @patch('medical_monitor.services.urlopen')
-    def test_bug06_truncated_response_falls_back_to_local_catalog(self, urlopen):
-        # BUG-06: IncompleteRead no es OSError ni ValueError: termina en un 500.
-        response = MagicMock()
-        response.read.side_effect = http.client.IncompleteRead(b'')
-        response.__enter__.return_value = response
-        urlopen.return_value = response
-        self.assertEqual(search_medications('paracet')['source'], 'local')
 
 
 class FindMedicationGuideTests(TestCase):

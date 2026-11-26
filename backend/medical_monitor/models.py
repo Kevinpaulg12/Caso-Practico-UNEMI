@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db import models
 from django.conf import settings
 
@@ -78,6 +80,57 @@ class MedicationGuide(models.Model):
         return self.name
 
 
+class Medication(models.Model):
+    """Fármaco del vademécum odontológico: lo que permite recetar en tres clics.
+
+    Las presentaciones, la frecuencia y la duración habituales se proponen al odontólogo; los textos
+    para el paciente (para qué sirve, cómo actúa, efectos, alimentos) se muestran junto a su receta.
+    Los registra la clínica («clinica») o salen del prospecto oficial de CIMA, resumido por la IA.
+    """
+
+    class Group(models.TextChoices):
+        ANALGESIC = 'analgesico', 'Analgésico'
+        NSAID = 'aine', 'Antiinflamatorio (AINE)'
+        ANTIBIOTIC = 'antibiotico', 'Antibiótico'
+        CORTICOSTEROID = 'corticoide', 'Antiinflamatorio esteroideo'
+        ANTISEPTIC = 'antiseptico', 'Antiséptico'
+        ANTIFUNGAL = 'antifungico', 'Antifúngico'
+        TOPICAL_ANESTHETIC = 'anestesico_topico', 'Anestésico tópico'
+        OTHER = 'otro', 'Otro'
+
+    class Source(models.TextChoices):
+        CLINIC = 'clinica', 'Vademécum de la clínica'
+        CIMA = 'cima', 'Prospecto oficial (CIMA)'
+
+    generic_name = models.CharField(max_length=120, unique=True)
+    # Marcas comerciales con las que el odontólogo también lo busca (p. ej. las de Ecuador).
+    brands = models.JSONField(default=list, blank=True)
+    group = models.CharField(max_length=20, choices=Group.choices, default=Group.OTHER)
+    # [{"strength": "400 mg", "form": "Tableta", "route": "Oral"}]
+    presentations = models.JSONField(default=list, blank=True)
+    frequencies = models.JSONField(default=list, blank=True)
+    default_frequency = models.CharField(max_length=60, blank=True)
+    duration_days = models.PositiveSmallIntegerField(default=0)
+    with_food = models.CharField(max_length=300, blank=True)
+    indications = models.TextField(blank=True)
+    mechanism = models.TextField(blank=True)
+    common_effects = models.TextField(blank=True)
+    warning_signs = models.TextField(blank=True)
+    prescription_required = models.BooleanField(default=False)
+    source = models.CharField(max_length=10, choices=Source.choices, default=Source.CLINIC)
+    cima_registry = models.CharField(max_length=20, blank=True)
+    # Si la ficha para el paciente ya se completó (desde CIMA o por la clínica).
+    sheet_ready = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['generic_name']
+
+    def __str__(self):
+        return self.generic_name
+
+
 class PatientReport(TimeStampedModel):
     class Comparison(models.TextChoices):
         LOWER = 'lower', 'Menor'
@@ -89,9 +142,16 @@ class PatientReport(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name='postoperative_reports',
     )
-    pain_level = models.PositiveSmallIntegerField()
-    comparison = models.CharField(max_length=10, choices=Comparison.choices)
+    class Source(models.TextChoices):
+        FORM = 'form', 'Formulario'
+        CHAT = 'chat', 'Conversación con el asistente'
+
+    # El paciente puede no decir su dolor: el seguimiento del día se evalúa entonces solo por síntomas.
+    pain_level = models.PositiveSmallIntegerField(null=True, blank=True)
+    comparison = models.CharField(max_length=10, choices=Comparison.choices, blank=True)
     message = models.TextField(blank=True)
+    # «chat»: seguimiento del día armado en silencio a partir de la conversación (uno por tratamiento y día).
+    source = models.CharField(max_length=10, choices=Source.choices, default=Source.FORM)
     nlp_severity = models.CharField(max_length=20, default='Baja')
     extracted_entities = models.JSONField(default=list, blank=True)
     doctor_notified = models.BooleanField(default=False)
@@ -122,7 +182,8 @@ class PatientReport(TimeStampedModel):
         return {'Bajo': 'verde', 'Medio': 'amarillo', 'Alto': 'rojo'}.get(self.risk_level, 'verde')
 
     def __str__(self):
-        return f'Report {self.id} for {self.patient.username} - EVA {self.pain_level}'
+        eva = 'sin EVA' if self.pain_level is None else f'EVA {self.pain_level}'
+        return f'Report {self.id} for {self.patient.username} - {eva}'
 
 
 class TreatmentPlan(TimeStampedModel):
@@ -141,6 +202,8 @@ class TreatmentPlan(TimeStampedModel):
     schedule_description = models.CharField(max_length=200)
     next_due_time = models.TimeField(null=True, blank=True)
     instructions = models.TextField()
+    # Indicaciones de alimentación, aparte de los cuidados: el paciente las ve en su propio apartado.
+    diet_instructions = models.TextField(blank=True)
     side_effects = models.TextField(blank=True)
     day_number = models.PositiveIntegerField(default=1)
     procedure = models.CharField(max_length=160, blank=True)
@@ -178,6 +241,14 @@ class TreatmentPlan(TimeStampedModel):
     clinical_data = models.JSONField(default=dict, blank=True)
     # Cuándo debe volver el paciente; nulo si no tiene un control pendiente.
     next_control_date = models.DateField(null=True, blank=True)
+    # Odontólogo que inició el tratamiento (el de la consulta); sus informes se calculan con esto.
+    doctor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='treatments_started',
+    )
 
     class Meta:
         ordering = ['day_number', 'next_due_time', 'title']
@@ -356,7 +427,7 @@ class ClinicalEvolutionSummary(TimeStampedModel):
         related_name='clinical_evolution',
     )
     day_label = models.CharField(max_length=50)
-    eva_recorded = models.PositiveSmallIntegerField()
+    eva_recorded = models.PositiveSmallIntegerField(null=True, blank=True)
     status_tag = models.CharField(max_length=50)
     clinical_notes = models.TextField(blank=True)
 
@@ -415,6 +486,142 @@ class ControlVisit(TimeStampedModel):
         return f'Control {self.date:%Y-%m-%d} del tratamiento {self.treatment_plan_id}'
 
 
+class DoctorSchedule(models.Model):
+    """Agenda en línea del odontólogo: cuánto dura cada turno y con cuánta anticipación se reserva."""
+
+    SLOT_CHOICES = [(20, '20 minutos'), (30, '30 minutos'), (45, '45 minutos'), (60, '1 hora')]
+
+    doctor = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='schedule')
+    slot_minutes = models.PositiveSmallIntegerField(choices=SLOT_CHOICES, default=30)
+    max_days_ahead = models.PositiveSmallIntegerField(default=30)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Agenda de {self.doctor}'
+
+
+class WorkingHours(models.Model):
+    """Franja de atención semanal: un mismo día puede tener varias (mañana y tarde)."""
+
+    doctor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='working_hours')
+    weekday = models.PositiveSmallIntegerField()  # 0 = lunes … 6 = domingo
+    start = models.TimeField()
+    end = models.TimeField()
+
+    class Meta:
+        ordering = ['weekday', 'start']
+
+    def __str__(self):
+        return f'{self.weekday} {self.start:%H:%M}-{self.end:%H:%M}'
+
+
+class TimeOff(TimeStampedModel):
+    """Día u horas en que el odontólogo no atiende (sin hora = todo el día)."""
+
+    doctor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='time_off')
+    date = models.DateField()
+    start = models.TimeField(null=True, blank=True)
+    end = models.TimeField(null=True, blank=True)
+    reason = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['date', 'start']
+        indexes = [models.Index(fields=['doctor', 'date'], name='timeoff_doctor_date_idx')]
+
+    @property
+    def all_day(self):
+        return self.start is None or self.end is None
+
+    def __str__(self):
+        return f'No disponible {self.date:%Y-%m-%d}'
+
+
+class InstructionPreset(models.Model):
+    """Frase propia del odontólogo para reutilizar en indicaciones, dieta o efectos a vigilar."""
+
+    MAX_PER_FIELD = 30
+
+    class Field(models.TextChoices):
+        INSTRUCTIONS = 'instructions', 'Indicaciones y cuidados'
+        DIET = 'diet', 'Dieta'
+        SIDE_EFFECTS = 'side_effects', 'Efectos a vigilar'
+
+    doctor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='instruction_presets')
+    field = models.CharField(max_length=20, choices=Field.choices)
+    text = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['field', 'created_at']
+        constraints = [models.UniqueConstraint(fields=['doctor', 'field', 'text'], name='preset_unique_text')]
+
+    def __str__(self):
+        return f'{self.get_field_display()}: {self.text[:40]}'
+
+
+class AppointmentRequest(TimeStampedModel):
+    """Cita reservada por el paciente en el chat, en un turno libre de la agenda de su odontólogo.
+
+    Por orden de llegada: un turno reservado deja de ofrecerse. No hay confirmación manual; el
+    odontólogo solo puede cancelarla (o bloquear su agenda, que cancela las que choquen).
+    """
+
+    class Period(models.TextChoices):
+        MORNING = 'morning', 'Mañana'
+        AFTERNOON = 'afternoon', 'Tarde'
+
+    class Status(models.TextChoices):
+        BOOKED = 'booked', 'Reservada'
+        ATTENDED = 'attended', 'Atendida'
+        CANCELLED = 'cancelled', 'Cancelada'
+
+    class Kind(models.TextChoices):
+        FOLLOWUP = 'followup', 'Seguimiento'
+        ASSESSMENT = 'assessment', 'Valoración de un tratamiento nuevo'
+
+    patient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='appointment_requests')
+    doctor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name='appointments',
+    )
+    treatment_plan = models.ForeignKey(
+        TreatmentPlan, on_delete=models.SET_NULL, null=True, blank=True, related_name='appointment_requests',
+    )
+    starts_at = models.DateTimeField(null=True, blank=True)
+    duration_minutes = models.PositiveSmallIntegerField(default=30)
+    kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.FOLLOWUP)
+    # Día y franja de la cita (se conservan para el historial de las solicitudes antiguas).
+    preferred_date = models.DateField()
+    preferred_period = models.CharField(max_length=10, choices=Period.choices)
+    reason = models.CharField(max_length=300, blank=True)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.BOOKED)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    # Quién la canceló y por qué.
+    handled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['status', 'preferred_date'], name='apptreq_status_date_idx'),
+            models.Index(fields=['doctor', 'starts_at'], name='appt_doctor_start_idx'),
+        ]
+        constraints = [
+            # Garantía de «el primero que llega»: un turno no puede reservarse dos veces.
+            models.UniqueConstraint(
+                fields=['doctor', 'starts_at'], condition=models.Q(status='booked'), name='appt_unique_booked_slot',
+            ),
+        ]
+
+    @property
+    def ends_at(self):
+        return self.starts_at + timedelta(minutes=self.duration_minutes) if self.starts_at else None
+
+    def __str__(self):
+        return f'Cita {self.pk} ({self.get_status_display()})'
+
+
 class CareCheckin(TimeStampedModel):
     """Checklist diario de cuidados: qué cumplió el paciente ese día (mide la adherencia)."""
 
@@ -441,6 +648,7 @@ class Reminder(models.Model):
         CONTROL = 'control', 'Control próximo'
         REPORT = 'report', 'Reporte pendiente'
         CARE = 'care', 'Cuidados del día'
+        AGENDA = 'agenda', 'Agenda del día (odontólogo)'
 
     kind = models.CharField(max_length=20, choices=Kind.choices)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reminders')

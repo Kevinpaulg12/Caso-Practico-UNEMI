@@ -110,12 +110,18 @@ El sistema dejó de limitarse al postoperatorio de cirugías y sigue cualquier t
 | Protocolos por especialidad | 19 protocolos en 9 especialidades (`ClinicalProcedure`: síntomas esperados por ventana, signos de alarma, checklist, preguntas guía, fases), editables por el administrador | `ProtocolAdminTests`, `ProcedureTests` |
 | PLN local ampliado | `nlp.py`: 19 categorías de síntomas, cuidados (adherencia, con negación) y duración («hace 3 días») | `ExtendedNlpTests` |
 | Triaje por especialidad | `rules/`: reglas generales + cirugía, endodoncia, ortodoncia, periodoncia, implantes, prótesis y operatoria/estética/odontopediatría | `SpecialtyRulesTests` |
-| Asistente conversacional | `ai/assistant.py`: varias preguntas por reporte; el LLM redacta y elige la pregunta, el triaje lo decide el PLN local | `AssistantLocalTests`, `AssistantLLMTests` |
-| Resumen clínico | `ai/summaries.py`: por demanda y tras cada alerta roja (en segundo plano) | `SummaryTests` |
+| Acompañamiento conversacional | `ai/assistant.py`: conversación diaria sin «enviar reportes»; cada mensaje actualiza en silencio el seguimiento del día (`reports.record_daily_followup`), ninguna pregunta se repite y el paciente no ve el triaje. Modelo `gemini-3.5-flash-lite` | `AssistantLocalTests`, `AssistantLLMTests` |
+| Respuestas solo con las indicaciones | `ai/explain.answer_question`: el LLM elige un fragmento y el servidor comprueba que exista en el texto del odontólogo; si no, búsqueda local o derivación | `GroundedAnswerTests` |
+| Citas pedidas en el chat | `AppointmentRequest`: el paciente pide día y franja; el odontólogo confirma o reprograma y el paciente recibe aviso | `AppointmentChatTests`, `AppointmentRequestApiTests` |
+| Síntesis para el odontólogo | `ai/summaries.py`: por demanda, tras cada alerta roja y una vez al día (`generate_daily_summaries`); incluye la conversación, controles y citas pedidas | `SummaryTests` |
 | Indicaciones en lenguaje sencillo | `ai/explain.py`: solo con el texto del odontólogo; las dudas sin respuesta se derivan | `ExplanationTests` |
-| Privacidad | `ai/anonymize.py`: sin nombres, cédulas, teléfonos, correos ni fechas; consentimiento versión `2026-11-ia` | `AnonymizationTests`, `FirstAccessConsentTests` |
+| Privacidad | `ai/anonymize.py`: sin nombres, cédulas, teléfonos, correos ni fechas (la edad va en años); consentimiento versión `2026-11-historia` | `AnonymizationTests`, `FirstAccessConsentTests` |
 | Fiabilidad | `ai/client.py`: salida estructurada, caché del prompt, respaldo del servidor y alternativa local ante cualquier fallo; bitácora `AIInteraction` | `ClientTests`, `MetricsTests` |
-| Fases, citas, checklist, odontograma y recordatorios | `TreatmentPhase`, `Appointment`, `CareCheckin`, notación FDI, `send_reminders` (servicio `scheduler`) | `tests_followup.py` |
+| Fases, controles, checklist, odontograma y recordatorios | `TreatmentPhase`, `ControlVisit` y `next_control_date` (sin agenda: el protocolo propone cada cuánto volver y el odontólogo lo ajusta), `CareCheckin`, odontograma SVG en notación FDI, `send_reminders` (servicio `scheduler`) | `tests_followup.py`, `tests_migrations.py` |
+| Consulta según el tratamiento | Campos propios de cada protocolo (`consultation_fields`), receta opcional, pestañas Procedimiento y odontograma / Medicación / Cuidados y dieta | `ProtocolFormTests`, `ConsultationForm.test.jsx` |
+| Receta en 3 clics | `medications.py`: vademécum odontológico local (33 fármacos), CIMA (AEMPS) y RxNav; marcas locales con su principio activo; ficha del prospecto resumida por la IA | `tests_medications.py` |
+| Credenciales por correo | `users/credentials.py`: envío SMTP en segundo plano, sin mostrar la contraseña; reenvío con contraseña nueva | `CredentialsEmailTests` |
+| Historia clínica compartida | `clinical_history.py`: todos los tratamientos del paciente para cualquier odontólogo de la clínica, con auditoría de cada acceso | `ClinicalHistoryTests`, `ClinicalHistory.test.jsx` |
 | Gráficas | D3.js: EVA por día de seguimiento y cumplimiento de cuidados | `charts.test.jsx` |
 
 **Evaluación del PLN** (`python manage.py evaluate_nlp`, informe en [evidencias/IA-evaluacion.md](evidencias/IA-evaluacion.md)): 124 frases etiquetadas a mano de las 9 especialidades. PLN local: precisión 98,0 %, exhaustividad 84,7 %, F1 90,9 %, latencia mediana 1,3 ms; ninguna frase negada produjo síntomas. La comparación con el LLM (`--llm`) requiere `GEMINI_API_KEY`; no se ha ejecutado.

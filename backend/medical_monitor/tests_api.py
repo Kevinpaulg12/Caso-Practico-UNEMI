@@ -420,7 +420,7 @@ class PatientReportApiTests(ApiTestCase):
 
     def test_legacy_report_without_recommendation_is_evaluated_on_read(self):
         PatientReport.objects.create(patient=self.patient, pain_level=9, comparison='same')
-        self.login(self.patient)
+        self.login(self.doctor)
         item = self.client.get('/api/patient-reports/').data['results'][0]
         self.assertEqual(item['risk_level'], 'Alto')
         self.assertTrue(item['recommendation'])
@@ -481,16 +481,18 @@ class MedicationSearchApiTests(ApiTestCase):
         self.login(self.patient)
         self.assertEqual(self.client.get('/api/medications/search/', {'q': 'para'}).status_code, 403)
 
-    @patch('medical_monitor.services.urlopen', side_effect=OSError)
-    def test_staff_can_search_with_strength(self, _urlopen):
+    @patch('medical_monitor.medications.urlopen', side_effect=OSError)
+    def test_staff_can_search_the_vademecum_without_internet(self, _urlopen):
         for user in (self.doctor, self.admin):
             with self.subTest(user=user.username):
                 self.login(user)
                 response = self.client.get('/api/medications/search/', {'q': 'paracet'})
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.data['items'][0]['strength'], '')
+                item = response.data['items'][0]
+                self.assertEqual((item['name'], item['source']), ('Paracetamol', 'Vademécum de la clínica'))
+                self.assertIn('500 mg', [option['strength'] for option in item['presentations']])
 
-    @patch('medical_monitor.services.urlopen')
+    @patch('medical_monitor.medications.urlopen')
     def test_missing_query_does_not_call_network(self, urlopen):
         self.login(self.doctor)
         self.assertEqual(self.client.get('/api/medications/search/').data['items'], [])

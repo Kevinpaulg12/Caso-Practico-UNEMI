@@ -26,7 +26,7 @@ describe('AuthContext', () => {
   beforeEach(() => { api.get.mockReset(); });
 
   it.each([
-    ['DOC', '/panel-doctor'],
+    ['DOC', '/panel-doctor/monitoreo'],
     ['ADM', '/panel-admin'],
     ['PAT', '/panel-paciente'],
   ])('el rol %s entra en %s', async (role, path) => {
@@ -50,6 +50,27 @@ describe('AuthContext', () => {
     setup();
     await act(async () => { await auth.login('u', 'p'); });
     expect(location()).toBe('/consentimiento');
+  });
+
+  it('si otra pestaña inicia sesión con otra cuenta, esta pestaña pasa al panel de esa cuenta', async () => {
+    mockLogin({ role: 'ADM', username: 'admin' });
+    setup();
+    await act(async () => { await auth.login('admin', 'p'); });
+    expect(location()).toBe('/panel-admin');
+    api.get.mockResolvedValue({ data: { role: 'PAT', username: 'ana' } });
+    localStorage.setItem('access_token', 'otro');
+    act(() => { window.dispatchEvent(new StorageEvent('storage', { key: 'access_token', oldValue: 'a', newValue: 'otro' })); });
+    await waitFor(() => expect(location()).toBe('/panel-paciente'));
+    expect(auth.user.username).toBe('ana');
+  });
+
+  it('si otra pestaña cierra la sesión, esta también vuelve al inicio de sesión', async () => {
+    mockLogin({ role: 'DOC', username: 'laura' });
+    setup();
+    await act(async () => { await auth.login('laura', 'p'); });
+    act(() => { window.dispatchEvent(new StorageEvent('storage', { key: 'access_token', oldValue: 'a', newValue: null })); });
+    expect(location()).toBe('/login');
+    expect(auth.isAuthenticated).toBe(false);
   });
 
   it('updateUser actualiza el perfil sin volver a pedirlo', async () => {

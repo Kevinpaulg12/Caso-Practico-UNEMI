@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import AlertSettings, AuditEvent, ClinicalProcedure, MedicationGuide
+from .models import AlertSettings, AuditEvent, ClinicalProcedure, InstructionPreset, Medication, MedicationGuide
 from .nlp import SYMPTOMS
 
 
@@ -130,3 +130,73 @@ class MedicationGuideSerializer(serializers.ModelSerializer):
         model = MedicationGuide
         fields = ['id', 'name', 'common_effects', 'what_to_do', 'warning_signs', 'source_note']
         read_only_fields = fields
+
+
+class MedicationSerializer(serializers.ModelSerializer):
+    group_label = serializers.CharField(source='get_group_display', read_only=True)
+
+    class Meta:
+        model = Medication
+        fields = [
+            'id', 'generic_name', 'brands', 'group', 'group_label', 'presentations', 'frequencies', 'default_frequency',
+            'duration_days', 'with_food', 'indications', 'mechanism', 'common_effects', 'warning_signs',
+            'prescription_required', 'source', 'cima_registry', 'is_active', 'updated_at',
+        ]
+        read_only_fields = ['id', 'group_label', 'source', 'cima_registry', 'updated_at']
+
+    def validate_brands(self, value):
+        return _text_list(value, 'Marcas', 30, 120)
+
+    def validate_frequencies(self, value):
+        return _text_list(value, 'Frecuencias', 10, 60)
+
+    def validate_presentations(self, value):
+        if not isinstance(value, list) or len(value) > 30:
+            raise serializers.ValidationError('Indica como máximo 30 presentaciones.')
+        cleaned = []
+        for item in value:
+            strength = str(item.get('strength', '')).strip() if isinstance(item, dict) else ''
+            if not strength or len(strength) > 40:
+                raise serializers.ValidationError('Cada presentación necesita su concentración (máximo 40 caracteres).')
+            cleaned.append({'strength': strength, 'form': str(item.get('form', '')).strip()[:60],
+                            'route': str(item.get('route', '')).strip()[:60]})
+        return cleaned
+
+    def validate_duration_days(self, value):
+        if value > 365:
+            raise serializers.ValidationError('Indica una duración de hasta 365 días.')
+        return value
+
+
+class BrandRegistrationSerializer(serializers.Serializer):
+    """Marca que no está en ninguna fuente pública (p. ej. de Ecuador) y su principio activo."""
+
+    brand = serializers.CharField(min_length=2, max_length=120)
+    active_ingredient = serializers.CharField(min_length=3, max_length=120)
+    presentations = serializers.ListField(child=serializers.DictField(), required=False, max_length=30)
+
+    def validate_presentations(self, value):
+        return MedicationSerializer().validate_presentations(value)
+
+
+class InstructionPresetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InstructionPreset
+        fields = ['id', 'field', 'text']
+
+    def validate_text(self, value):
+        value = ' '.join(value.split())
+        if len(value) < 3:
+            raise serializers.ValidationError('Escribe una frase de al menos 3 caracteres.')
+        return value
+
+    def validate(self, attrs):
+        doctor = self.context['request'].user
+        same = InstructionPreset.objects.filter(doctor=doctor, field=attrs['field'])
+        if same.filter(text__iexact=attrs['text']).exists():
+            raise serializers.ValidationError({'text': 'Ya tienes guardada esa frase.'})
+        if same.count() >= InstructionPreset.MAX_PER_FIELD:
+            raise serializers.ValidationError(
+                {'text': f'Puedes guardar hasta {InstructionPreset.MAX_PER_FIELD} frases por campo. Borra alguna antes.'}
+            )
+        return attrs

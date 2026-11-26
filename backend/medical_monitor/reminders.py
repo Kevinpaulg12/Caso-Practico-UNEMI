@@ -58,7 +58,7 @@ def pending_for_plan(plan, now=None):
         items.append({
             'kind': Reminder.Kind.REPORT,
             'key': f'report:{plan.pk}:{today.isoformat()}',
-            'text': 'Hoy te toca contarle a tu odontólogo cómo te sientes: abre el asistente y envía tu reporte.',
+            'text': '¿Cómo te sientes hoy? Cuéntaselo al asistente.',
         })
 
     care_items = getattr(plan.clinical_procedure, 'care_items', None) or []

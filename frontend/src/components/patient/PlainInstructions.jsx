@@ -53,8 +53,8 @@ export default function PlainInstructions({ planId }) {
           </div>
         </div>
         {!content && (
-          <button type="button" onClick={load} disabled={loading} className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50">
-            {loading ? 'Preparando...' : 'Explícamelo fácil'}
+          <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-50">
+            <IconSparkles className="h-3.5 w-3.5 shrink-0" />{loading ? 'Preparando...' : 'Explícamelo fácil'}
           </button>
         )}
       </div>

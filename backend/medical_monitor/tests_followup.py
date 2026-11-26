@@ -235,6 +235,24 @@ class ControlTests(FollowUpFixture):
         self.assertEqual((active.medication_name, active.active_ingredient, active.treatment_plan_id), ('Paracetamol', 'Paracetamol', plan.pk))
         self.assertEqual(Prescription.objects.filter(is_active=False).count(), 1)
 
+    def test_the_control_that_closes_a_phase_starts_the_next_one(self):
+        response = self.control(advance_phase=True)
+        self.assertEqual(response.status_code, 201, response.data)
+        treatment = response.data['treatment']
+        self.assertEqual(treatment['current_phase']['name'], 'Corrección de la mordida')
+        self.assertEqual(treatment['phases'][0]['status'], 'done')
+        self.assertTrue(TreatmentChange.objects.filter(summary__contains='Inicia: Corrección').exists())
+        # Sin marcarlo, el control no cambia de fase.
+        self.assertEqual(self.control().data['treatment']['current_phase']['name'], 'Corrección de la mordida')
+        # En la última fase no se puede avanzar: el control entero se rechaza.
+        self.control(advance_phase=True)
+        self.control(advance_phase=True)
+        visits = ControlVisit.objects.count()
+        response = self.control(advance_phase=True)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('última fase', str(response.data['advance_phase']))
+        self.assertEqual(ControlVisit.objects.count(), visits)
+
     def test_only_the_treating_dentist_registers_controls(self):
         self.assertEqual(self.control(user=self.patient).status_code, 403)
         self.assertEqual(self.control(user=self.other_doctor).status_code, 404)
@@ -382,16 +400,20 @@ class ReminderTests(FollowUpFixture):
         from django.core import mail
         from django.core.management import call_command
         self.control_in(2)
+        # Después de las 18 h también sale el aviso de cuidados del día: aquí solo cuentan los de control.
+        def controls():
+            return [message.body for message in mail.outbox if 'control' in message.body]
+
         call_command('send_reminders', stdout=open('/dev/null', 'w'))
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn('Tu control de ortodoncia con brackets toca el', mail.outbox[0].body)
+        self.assertEqual(len(controls()), 1)
+        self.assertIn('Tu control de ortodoncia con brackets toca el', controls()[0])
         call_command('send_reminders', stdout=open('/dev/null', 'w'))
-        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(len(controls()), 1)
         # El día del control se envía un aviso distinto, también una sola vez.
         self.control_in(0)
         call_command('send_reminders', stdout=open('/dev/null', 'w'))
         call_command('send_reminders', stdout=open('/dev/null', 'w'))
-        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(len(controls()), 2)
 
     def test_patient_sees_reminders_in_the_portal(self):
         self.control_in(1)

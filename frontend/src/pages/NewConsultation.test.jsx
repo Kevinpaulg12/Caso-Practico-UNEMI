@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
 import { renderAt } from '../test/utils';
@@ -11,12 +11,13 @@ const search = (value) => {
   fireEvent.change(screen.getByPlaceholderText(/1723456789/), { target: { value } });
   fireEvent.click(screen.getByRole('button', { name: 'Buscar ficha' }));
 };
+const CREATED = { id: 3, username: 'paciente.12345678', full_name: 'Ana López', credentials: { email: 'a***@example.com', sent_at: null, error: '' } };
 const mockSearch = (patients) => api.get.mockImplementation(async (url) => (url === '/me/' ? { data: {} } : { data: patients }));
 
 function fillNew(container, overrides = {}) {
   const values = {
     first_name: 'Ana', last_name: 'López', birth_date: '1990-01-01',
-    phone: '0991234567', emergency_contact: '0987654321', ...overrides,
+    phone: '0991234567', emergency_contact: '0987654321', email: 'ana@example.com', ...overrides,
   };
   for (const [name, value] of Object.entries(values)) {
     fireEvent.change(container.querySelector(`[name=${name}]`), { target: { value } });
@@ -122,17 +123,32 @@ describe('Nueva consulta', () => {
     expect(await screen.findByText(message)).toBeInTheDocument();
   });
 
-  it('crea la ficha y muestra las credenciales', async () => {
+  it('crea la ficha y envía las credenciales por correo, sin mostrar la contraseña', async () => {
     mockSearch([]);
-    api.post.mockResolvedValue({ data: { id: 3, username: 'paciente.12345678', full_name: 'Ana López', temporary_password: 'Temp-1' } });
+    api.post.mockImplementation(async (url) => (url === '/patients/' ? { data: CREATED }
+      : { data: { email: 'a***@example.com', sent_at: '2026-11-18T10:00:00Z', error: '' } }));
     const { container } = renderAt(<NewConsultation />);
     search('12345678');
     await screen.findByText(/No encontramos/);
     fillNew(container);
-    expect(await screen.findByText('Temp-1')).toBeInTheDocument();
-    expect(api.post.mock.calls[0][1]).toMatchObject({ national_id: '12345678', first_name: 'Ana' });
-    fireEvent.click(screen.getByText('Ocultar credenciales'));
-    expect(screen.queryByText('Temp-1')).toBeNull();
+    const sent = await screen.findByRole('region', { name: 'Credenciales del paciente' });
+    expect(sent).toHaveTextContent('Credenciales enviadas a a***@example.com');
+    expect(sent).toHaveTextContent('Usuario: paciente.12345678');
+    expect(sent).not.toHaveTextContent(/Paciente-|Temp/);
+    expect(api.post.mock.calls[0][1]).toMatchObject({ national_id: '12345678', first_name: 'Ana', email: 'ana@example.com' });
+    fireEvent.click(within(sent).getByRole('button', { name: 'Reenviar credenciales' }));
+    expect(await within(sent).findByRole('status')).toHaveTextContent('Se generó una contraseña temporal nueva');
+    expect(api.post).toHaveBeenLastCalledWith('/patients/3/credentials/');
+  });
+
+  it('el correo es obligatorio para registrar al paciente', async () => {
+    mockSearch([]);
+    const { container } = renderAt(<NewConsultation />);
+    search('12345678');
+    await screen.findByText(/No encontramos/);
+    fillNew(container, { email: '' });
+    expect(screen.getByText('Escribe el correo del paciente: allí recibirá sus credenciales.')).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it('valida los datos antes de crear la ficha', async () => {
@@ -159,28 +175,28 @@ describe('Nueva consulta', () => {
 
   it('BUG-45 una ficha nueva no rompe la edad', async () => {
     mockSearch([]);
-    api.post.mockResolvedValue({ data: { id: 3, username: 'u', full_name: 'Ana', temporary_password: 'T' } });
+    api.post.mockResolvedValue({ data: CREATED });
     const { container } = renderAt(<NewConsultation />);
     search('12345678');
     await screen.findByText(/No encontramos/);
     fillNew(container);
-    await screen.findByText('Credenciales temporales del paciente');
+    await screen.findByRole('region', { name: 'Credenciales del paciente' });
     expect(screen.queryByText(/Edad no registrada años/)).toBeNull();
   });
 
   it('Consulta médica: el registro de pacientes se abre sin buscar y muestra la edad', async () => {
     mockSearch([]);
-    api.post.mockResolvedValue({ data: { id: 3, username: 'u', full_name: 'Ana López', temporary_password: 'T' } });
+    api.post.mockResolvedValue({ data: CREATED });
     const { container } = renderAt(<NewConsultation />);
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Consulta médica');
-    fireEvent.click(screen.getByRole('button', { name: '+ Registrar paciente nuevo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar paciente nuevo' }));
     fireEvent.change(container.querySelector('[name=birth_date]'), { target: { value: '2000-01-01' } });
     expect(screen.getByText(/Edad calculada:/)).toHaveTextContent(/\d+ años/);
     // El consentimiento ya no lo marca el médico: lo da el paciente en su primer acceso.
     expect(container.querySelector('[type=checkbox]')).toBeNull();
     expect(screen.getByText(/el propio paciente leerá y aceptará los Términos/)).toBeInTheDocument();
     fillNew(container, { national_id: '12345678' });
-    expect(await screen.findByText('Credenciales temporales del paciente')).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Credenciales del paciente' })).toBeInTheDocument();
     expect(api.post.mock.calls[0][1]).not.toHaveProperty('consent');
   });
 
@@ -194,7 +210,7 @@ describe('Nueva consulta', () => {
 
   it('BUG-47 acepta nombres con diacríticos no españoles', async () => {
     mockSearch([]);
-    api.post.mockResolvedValue({ data: { id: 3, username: 'u', temporary_password: 'T' } });
+    api.post.mockResolvedValue({ data: CREATED });
     const { container } = renderAt(<NewConsultation />);
     search('12345678');
     await screen.findByText(/No encontramos/);

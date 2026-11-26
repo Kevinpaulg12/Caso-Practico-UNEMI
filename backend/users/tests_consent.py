@@ -5,10 +5,11 @@ from rest_framework.test import APITestCase
 from medical_monitor.models import AuditEvent
 
 from .models import TERMS_VERSION, User, title_case_name
+from .tests_support import password_from_mail
 
 PATIENT_DATA = {
     'first_name': 'Ana', 'last_name': 'López', 'national_id': '1712345678',
-    'birth_date': '1990-05-10', 'phone': '0991234567', 'emergency_contact': '0997654321',
+    'birth_date': '1990-05-10', 'phone': '0991234567', 'emergency_contact': '0997654321', 'email': 'ana@example.com',
 }
 
 
@@ -20,10 +21,11 @@ class FirstAccessConsentTests(APITestCase):
 
     def setUp(self):
         self.client.force_authenticate(user=self.doctor)
-        response = self.client.post('/api/patients/', PATIENT_DATA, format='json')
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post('/api/patients/', PATIENT_DATA, format='json')
         self.assertEqual(response.status_code, 201)
         self.patient = User.objects.get(pk=response.data['id'])
-        self.temporary_password = response.data['temporary_password']
+        self.temporary_password = password_from_mail()
         self.client.force_authenticate(user=self.patient)
 
     def accept(self, accepted=True, version=TERMS_VERSION):
@@ -84,7 +86,7 @@ class FirstAccessConsentTests(APITestCase):
     def test_staff_accounts_are_not_asked_for_patient_consent(self):
         self.client.force_authenticate(user=self.admin)
         doctor = self.client.post('/api/admin/users/', {
-            'username': 'nueva.doctora', 'first_name': 'Eva', 'last_name': 'Paz', 'role': 'DOC',
+            'username': 'nueva.doctora', 'first_name': 'Eva', 'last_name': 'Paz', 'role': 'DOC', 'email': 'eva@clinica.ec',
         }, format='json')
         self.assertEqual(doctor.status_code, 201)
         self.assertFalse(User.objects.get(username='nueva.doctora').must_accept_terms)

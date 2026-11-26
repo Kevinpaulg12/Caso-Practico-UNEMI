@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Prescription
-from .caching import medication_guides
+from .medications import guidance_catalog
 from .services import find_medication_guide
 
 
@@ -16,7 +16,7 @@ class MedicationGuidanceMixin:
     def medication_guides(self):
         # Se cargan una sola vez por respuesta, no una vez por fila.
         if not hasattr(self.root, '_medication_guides'):
-            self.root._medication_guides = medication_guides()
+            self.root._medication_guides = guidance_catalog()
         return self.root._medication_guides
 
 

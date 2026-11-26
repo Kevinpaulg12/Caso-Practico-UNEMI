@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { initials, rememberedProfile } from '../services/session';
-import { IconTooth, IconUser, IconLock, IconEye, IconEyeOff, IconAlertTriangle, IconClipboard, IconSparkles } from '../components/Icons';
+import { IconAlertTriangle, IconArrowRight, IconClipboard, IconEye, IconEyeOff, IconLock, IconPhone, IconSparkles, IconTooth, IconUser } from '../components/Icons';
 
 const features = [
   {
@@ -257,7 +257,7 @@ export default function Login() {
                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/20 transition hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSubmitting ? 'Verificando...' : 'Iniciar sesión'}
-                  {!isSubmitting && <span aria-hidden="true" className="text-base">→</span>}
+                  {!isSubmitting && <IconArrowRight className="h-4 w-4 shrink-0" />}
                 </button>
               </form>
 
@@ -281,7 +281,7 @@ export default function Login() {
               )}
 
               <address className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-center text-xs font-semibold not-italic text-rose-700">
-                <span aria-hidden="true">☎ </span>¿Urgencia dental? Clínica San Jerónimo: <a href="tel:042700000" className="underline">04 270 0000</a>
+                <IconPhone className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />¿Urgencia dental? Clínica San Jerónimo: <a href="tel:042700000" className="underline">04 270 0000</a>
               </address>
 
               <footer className="mt-4 text-center text-[10px] text-slate-500">

@@ -216,6 +216,15 @@ export function IconLogout({ className = "w-4 h-4" }) {
   );
 }
 
+export function IconBell({ className = "w-5 h-5" }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+      <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
+    </svg>
+  );
+}
+
 export function IconCalendar({ className = "w-5 h-5" }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -225,4 +234,81 @@ export function IconCalendar({ className = "w-5 h-5" }) {
       <path d="M3 10h18" />
     </svg>
   );
+}
+
+// Trazos de 24×24 (estilo Lucide) para los botones de acción.
+function Stroke({ className, children }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      {children}
+    </svg>
+  );
+}
+
+export function IconPhone({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" /></Stroke>;
+}
+
+export function IconMail({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><rect width="20" height="16" x="2" y="4" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></Stroke>;
+}
+
+export function IconX({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M18 6 6 18" /><path d="m6 6 12 12" /></Stroke>;
+}
+
+export function IconPlus({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M5 12h14" /><path d="M12 5v14" /></Stroke>;
+}
+
+export function IconPencil({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M21.2 6.8a2.8 2.8 0 0 0-4-4L3.8 16.2a2 2 0 0 0-.5.8l-1.3 4.4a.5.5 0 0 0 .6.6l4.4-1.3a2 2 0 0 0 .8-.5z" /><path d="m15 5 4 4" /></Stroke>;
+}
+
+export function IconTrash({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></Stroke>;
+}
+
+export function IconHistory({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" /></Stroke>;
+}
+
+export function IconArrowLeft({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></Stroke>;
+}
+
+export function IconArrowRight({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></Stroke>;
+}
+
+export function IconSave({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" /><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" /><path d="M7 3v4a1 1 0 0 0 1 1h7" /></Stroke>;
+}
+
+export function IconRefresh({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></Stroke>;
+}
+
+export function IconDownload({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /><path d="M12 15V3" /></Stroke>;
+}
+
+export function IconCheck({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M20 6 9 17l-5-5" /></Stroke>;
+}
+
+export function IconClock({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></Stroke>;
+}
+
+export function IconUserCheck({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="m16 11 2 2 4-4" /></Stroke>;
+}
+
+export function IconUserX({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="m17 8 5 5" /><path d="m22 8-5 5" /></Stroke>;
+}
+
+export function IconPrinter({ className = "w-4 h-4" }) {
+  return <Stroke className={className}><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></Stroke>;
 }

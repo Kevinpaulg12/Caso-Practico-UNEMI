@@ -33,6 +33,16 @@ class AdminUserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('El rol de una cuenta existente no se puede cambiar.')
         return value
 
+    def validate(self, attrs):
+        # Las alertas rojas y la agenda del día llegan por correo: un odontólogo sin correo no las recibe.
+        # Solo al crear la cuenta o al cambiar el correo: activar o desactivar una cuenta antigua sigue permitido.
+        if self.instance is not None and 'email' not in attrs:
+            return attrs
+        role = attrs.get('role', getattr(self.instance, 'role', None))
+        if role == User.Roles.DOCTOR and not (attrs.get('email') or '').strip():
+            raise serializers.ValidationError({'email': 'El correo es obligatorio para los odontólogos: por él reciben las alertas y su agenda.'})
+        return attrs
+
     def validate_is_active(self, value):
         request = self.context['request']
         if self.instance == request.user and not value:

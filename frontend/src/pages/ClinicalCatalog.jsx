@@ -4,6 +4,7 @@ import ChartLoading from '../components/charts/ChartLoading';
 import api from '../services/api';
 import { buildSeries } from '../services/evolution';
 import { fetchAll } from '../services/pagination';
+import { IconPlus, IconSave, IconX } from '../components/Icons';
 
 const PainChart = lazy(() => import('../components/charts/PainChart'));
 
@@ -143,9 +144,9 @@ export default function ClinicalCatalog() {
             <button
               type="button"
               onClick={() => { setForm(emptyProcedure); setMessage(''); }}
-              className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
+              className="inline-flex items-center gap-1.5 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700"
             >
-              + Nuevo protocolo
+              <IconPlus className="h-3.5 w-3.5 shrink-0" />Nuevo protocolo
             </button>
             <label className="block text-xs font-bold text-slate-700">
               Especialidad
@@ -299,8 +300,8 @@ export default function ClinicalCatalog() {
 
             {message && <p role="status" className="text-xs font-semibold text-emerald-700">{message}</p>}
             <div className="flex justify-end">
-              <button type="submit" className="rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700">
-                Guardar protocolo
+              <button type="submit" className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700">
+                <IconSave className="h-3.5 w-3.5 shrink-0" />Guardar protocolo
               </button>
             </div>
           </form>
@@ -350,12 +351,12 @@ function Rows({ rows, onChange, empty, addLabel, render }) {
         <div key={index} className="flex flex-wrap items-center gap-2">
           {render(row, (patch) => change(index, patch))}
           <button type="button" aria-label="Quitar" onClick={() => onChange(rows.filter((_, position) => position !== index))} className="rounded-lg px-2 py-1 text-xs font-bold text-slate-400 hover:bg-rose-50 hover:text-rose-600">
-            ✕
+            <IconX className="h-4 w-4 shrink-0" />
           </button>
         </div>
       ))}
-      <button type="button" onClick={() => onChange([...rows, { ...empty }])} className="rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50">
-        {addLabel}
+      <button type="button" onClick={() => onChange([...rows, { ...empty }])} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50">
+        <IconPlus className="h-3.5 w-3.5 shrink-0" />{addLabel}
       </button>
     </div>
   );

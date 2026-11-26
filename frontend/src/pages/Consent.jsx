@@ -3,14 +3,14 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { homePath } from '../services/session';
-import { IconAlertTriangle, IconLock, IconTooth } from '../components/Icons';
+import { IconAlertTriangle, IconArrowLeft, IconLock, IconLogout, IconTooth, IconX } from '../components/Icons';
 
 // Texto base: la clínica debe revisarlo con su asesoría legal antes de usarlo con pacientes reales.
 const SECTIONS = [
   ['1. Qué es DentalSense', 'DentalSense es una plataforma de seguimiento de tu recuperación durante tu tratamiento odontológico. Te permite consultar las indicaciones de tu odontólogo y reportar cómo te sientes cada día.'],
   ['2. Datos que tratamos', 'Datos de identificación y contacto (nombres, cédula, fecha de nacimiento, teléfono y contacto de emergencia) y datos de salud: el procedimiento realizado, tu medicación, el nivel de dolor que reportas, los síntomas que describes y los mensajes que escribes al asistente.'],
   ['3. Para qué los usamos', 'Únicamente para acompañar tu recuperación: mostrarte tus indicaciones, analizar tus reportes con un sistema automático que detecta signos de alarma y avisar a tu odontólogo cuando un reporte lo requiera. No se usan con fines comerciales ni se venden a terceros.'],
-  ['4. Quién puede verlos', 'Tu odontólogo tratante y el equipo clínico autorizado. El administrador del sistema accede solo al registro de auditoría para fines de seguridad. Cada acceso relevante queda registrado.'],
+  ['4. Quién puede verlos', 'Tu odontólogo tratante y el equipo clínico autorizado. Para darte continuidad, cualquier odontólogo de la clínica que te atienda puede consultar tu historia clínica completa, incluidos los tratamientos que te hizo otro odontólogo; cada consulta queda registrada con su nombre y fecha. El administrador del sistema accede solo al registro de auditoría para fines de seguridad.'],
   ['5. Análisis automático', 'El análisis de tus mensajes orienta al equipo clínico, pero no reemplaza el criterio profesional ni constituye un diagnóstico. El nivel de alerta lo calculan reglas clínicas validadas por el equipo, dentro de los servidores de la clínica. Esta plataforma no es un canal de emergencias: si tienes una urgencia, llama a la clínica al 04 270 0000.'],
   ['6. Inteligencia artificial', 'Para conversar contigo, explicarte tus indicaciones en lenguaje sencillo y resumir tu evolución para tu odontólogo, la plataforma usa un modelo de inteligencia artificial de un proveedor externo (Google, modelo Gemini). Antes de enviarle información se eliminan tu nombre, tu cédula, tus teléfonos y las fechas exactas, incluida tu fecha de nacimiento: solo recibe tu edad en años, tu tratamiento y lo que describes de tus síntomas. Si este servicio no está disponible, la plataforma sigue funcionando sin él.'],
   ['7. Conservación y seguridad', 'Tus datos se conservan mientras dure tu seguimiento y el tiempo que exige la normativa de historia clínica. La sesión se cierra tras 5 minutos de inactividad y las contraseñas se guardan cifradas.'],
@@ -112,18 +112,18 @@ export default function Consent() {
             <p id="decline-title" className="font-bold">¿Seguro que no aceptas?</p>
             <p className="mt-1 text-xs">Sin tu autorización no podrás usar el portal: tu sesión se cerrará. Puedes volver a ingresar cuando quieras y aceptarlos entonces. Tu odontólogo seguirá atendiéndote en la clínica.</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" onClick={() => answer(false)} disabled={sending || !version} className="rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white hover:bg-amber-800 disabled:opacity-50">
-                No acepto, cerrar sesión
+              <button type="button" onClick={() => answer(false)} disabled={sending || !version} className="inline-flex items-center gap-1.5 rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white hover:bg-amber-800 disabled:opacity-50">
+                <IconLogout className="h-3.5 w-3.5 shrink-0" />No acepto, cerrar sesión
               </button>
-              <button type="button" onClick={() => setConfirmDecline(false)} className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-800 hover:bg-amber-100">
-                Volver a leer
+              <button type="button" onClick={() => setConfirmDecline(false)} className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-800 hover:bg-amber-100">
+                <IconArrowLeft className="h-3.5 w-3.5 shrink-0" />Volver a leer
               </button>
             </div>
           </div>
         ) : (
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <button type="button" onClick={() => setConfirmDecline(true)} disabled={sending} className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-              No acepto
+            <button type="button" onClick={() => setConfirmDecline(true)} disabled={sending} className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50">
+              <IconX className="h-3.5 w-3.5 shrink-0" />No acepto
             </button>
             <button type="button" onClick={() => answer(true)} disabled={!ready} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
               <IconLock className="h-4 w-4" />

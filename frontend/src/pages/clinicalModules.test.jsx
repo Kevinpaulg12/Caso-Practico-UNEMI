@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../services/api';
 import { page, renderAt } from '../test/utils';
@@ -10,7 +10,8 @@ import Discharges from './Discharges';
 import Reports from './Reports';
 
 vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn() } }));
-vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ logout: vi.fn() }) }));
+const session = vi.hoisted(() => ({ user: null }));
+vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ logout: vi.fn(), user: session.user }) }));
 
 function mockGet(routes) {
   api.get.mockImplementation(async (url) => {
@@ -45,8 +46,24 @@ describe('Módulos con datos reales', () => {
       mockGet(routes);
       api.patch.mockResolvedValue({ data: {} });
       renderAt(<AdminUsers />);
-      fireEvent.click(await screen.findByRole('button', { name: 'Desactivar' }));
+      fireEvent.click(await screen.findByRole('button', { name: /^Desactivar a / }));
       await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/admin/users/2/', { is_active: false }));
+    });
+
+    it('el administrador no puede desactivarse a sí mismo', async () => {
+      session.user = { id: 2 };
+      mockGet(routes);
+      renderAt(<AdminUsers />);
+      expect(await screen.findByRole('button', { name: 'No puedes desactivar tu propia cuenta' })).toBeDisabled();
+      session.user = null;
+    });
+
+    it('si la sesión cambió de cuenta en otra pestaña lo explica', async () => {
+      mockGet(routes);
+      api.patch.mockRejectedValue({ response: { status: 403, data: { detail: 'Solo el administrador puede realizar esta acción.' } } });
+      renderAt(<AdminUsers />);
+      fireEvent.click(await screen.findByRole('button', { name: /^Desactivar a / }));
+      expect(await screen.findByRole('alert')).toHaveTextContent('otra cuenta en otra pestaña');
     });
 
     it('crea una cuenta y muestra la clave temporal', async () => {
@@ -54,7 +71,7 @@ describe('Módulos con datos reales', () => {
       api.post.mockResolvedValue({ data: { username: 'eva', temporary_password: 'Temp-9' } });
       const { container } = renderAt(<AdminUsers />);
       await screen.findByText('Laura Paz');
-      fireEvent.click(screen.getByRole('button', { name: '+ Nuevo usuario' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Nuevo usuario' }));
       fireEvent.change(container.querySelector('[name=username]'), { target: { value: 'eva' } });
       fireEvent.submit(container.querySelector('[name=username]').closest('form'));
       expect(await screen.findByText(/eva \/ Temp-9/)).toBeInTheDocument();
@@ -87,6 +104,38 @@ describe('Módulos con datos reales', () => {
     // La gráfica se carga aparte (D3): la primera importación en la prueba puede tardar más de 1 s.
     expect(await screen.findByRole('img', { name: 'Sangrado: 2' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByText('No hay reportes en este periodo.')).toBeInTheDocument();
+  });
+
+  it('Reports muestra los tratamientos que realizó el odontólogo', async () => {
+    mockGet({
+      '/reports/summary/': {
+        days: 30, patients_monitored: 1, reports_total: 2, alerts_medium: 0, alerts_high: 1,
+        average_followup_days: 2, risk_distribution: { Bajo: 1, Medio: 0, Alto: 0 },
+        pain_by_day: [], top_symptoms: [], high_pain_threshold: 7,
+        activity: {
+          doctor_name: 'Laura Mora', treatments_started: 3, treatments_active: 2, treatments_discharged: 1, patients_treated: 2,
+          controls_given: 4, discharges_given: 1, prescriptions_issued: 5, appointments_attended: 3, appointments_cancelled: 1,
+          treatments_with_high_alerts: 1, reports_received: 6,
+          by_procedure: [{ procedure: 'Exodoncia simple', specialty: 'Cirugía oral', total: 2, active: 1, discharged: 1, patients: 2 }],
+          top_medications: [{ name: 'Amoxicilina', count: 3 }, { name: 'Ibuprofeno', count: 2 }],
+          treatments: [{
+            id: 8, patient_id: 3, patient_name: 'Ana Ruiz', procedure: 'Exodoncia simple', teeth: [38], start_date: '2026-11-02',
+            status: 'Alta', discharged_at: '2026-11-10T10:00:00Z', controls: 2, medications: ['Amoxicilina', 'Ibuprofeno'], high_alerts: 1,
+          }],
+        },
+      },
+    });
+    renderAt(<Reports />);
+    expect(await screen.findByText('Tu actividad clínica')).toBeInTheDocument();
+    expect(screen.getByText('Tratamientos iniciados').closest('article')).toHaveTextContent('32 en curso · 1 con alta');
+    expect(screen.getByRole('region', { name: 'Tratamientos por procedimiento' })).toHaveTextContent('Exodoncia simpleCirugía oral');
+    expect(screen.getByRole('region', { name: 'Medicamentos más recetados' })).toHaveTextContent('Amoxicilina3');
+    const detail = screen.getByRole('region', { name: 'Detalle de tratamientos' });
+    expect(within(detail).getByRole('link', { name: 'Ana Ruiz' })).toHaveAttribute('href', '/panel-doctor/tratamientos/8');
+    expect(detail).toHaveTextContent('Piezas 38');
+    expect(detail).toHaveTextContent('Amoxicilina, Ibuprofeno');
+    // El encabezado del PDF nombra al odontólogo.
+    expect(screen.getByText(/Informe de tratamientos · Dr\(a\). Laura Mora/)).toBeInTheDocument();
   });
 
   it('Discharges lista los tratamientos cerrados', async () => {

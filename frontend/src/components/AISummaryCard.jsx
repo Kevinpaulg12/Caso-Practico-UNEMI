@@ -65,8 +65,8 @@ export default function AISummaryCard({ patientId }) {
             </p>
           </div>
         </div>
-        <button type="button" onClick={generate} disabled={generating || status === 'error'} className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-800 hover:bg-violet-100 disabled:opacity-50">
-          {generating ? 'Generando...' : summary ? 'Actualizar resumen' : 'Generar resumen'}
+        <button type="button" onClick={generate} disabled={generating || status === 'error'} className="inline-flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-800 hover:bg-violet-100 disabled:opacity-50">
+          <IconSparkles className="h-3.5 w-3.5 shrink-0" />{generating ? 'Generando...' : summary ? 'Actualizar resumen' : 'Generar resumen'}
         </button>
       </div>
       {status === 'error' && <p role="alert" className="mt-3 text-xs text-rose-700">No se pudo cargar el resumen.</p>}

@@ -5,13 +5,17 @@ import DoctorLayout from '../components/DoctorLayout';
 import { AlertDot, SymptomChips } from '../components/AlertLevel';
 import { ALERT_LABELS } from '../components/alertLevels';
 import ChartLoading from '../components/charts/ChartLoading';
-import { IconAlertTriangle, IconCheckCircle } from '../components/Icons';
+import { IconAlertTriangle, IconArrowLeft, IconCalendar, IconCheckCircle, IconPencil, IconSave, IconX } from '../components/Icons';
 import Odontogram from '../components/Odontogram';
 import ControlForm from '../components/consultation/ControlForm';
+import MedicationList from '../components/consultation/MedicationList';
+import { CheckField } from '../components/consultation/fields';
 import api from '../services/api';
-import { describeNextControl, formatLongDate } from '../services/consultationRules';
+import {
+  describeNextControl, formatLongDate, medicationListErrors, medicationsPayload, newMedication, validateMedications,
+} from '../services/consultationRules';
 import { buildSeries } from '../services/evolution';
-import { DEFAULT_STRENGTHS, DOSAGE_FORMS, DURATION_PATTERN, FREQUENCIES } from '../services/medicationOptions';
+import IconButton from '../components/IconButton';
 
 const PainChart = lazy(() => import('../components/charts/PainChart'));
 
@@ -44,17 +48,28 @@ const MARKER = {
 const formatDate = (value) => (value ? new Date(`${value}T00:00:00`).toLocaleDateString('es-EC') : '—');
 const formatDateTime = (value) => new Date(value).toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' });
 
-const EDIT_FIELDS = ['medication_name', 'strength', 'dosage_form', 'frequency', 'duration', 'instructions', 'side_effects', 'clinical_notes', 'teeth'];
+const EDIT_FIELDS = ['instructions', 'side_effects', 'clinical_notes', 'teeth'];
 
-function validate(form, isMedication) {
+// Medicamentos vigentes del plan como tarjetas del formulario (la duración se edita en días).
+function toItems(plan) {
+  const list = plan.medications?.length ? plan.medications : plan.medication_name ? [plan] : [];
+  return list.map((item) => ({
+    ...newMedication(),
+    medication_name: item.medication_name || '',
+    active_ingredient: item.active_ingredient || item.medication_name?.split(' ')[0] || '',
+    strength: item.strength || '',
+    dosage_form: item.dosage_form || '',
+    frequency: item.frequency || '',
+    duration: (item.duration || '').match(/\d+/)?.[0] ?? '',
+  }));
+}
+
+const medicationKey = (items) => JSON.stringify(items.map((item) => [
+  item.medication_name.trim().toLowerCase(), item.strength, item.dosage_form, item.frequency, item.duration,
+]));
+
+function validate(form) {
   const errors = {};
-  if (isMedication) {
-    if (form.medication_name.trim().length < 2 || form.medication_name.trim().length > 120) errors.medication_name = 'Indica un medicamento entre 2 y 120 caracteres.';
-    if (!form.strength.trim()) errors.strength = 'Indica la concentración.';
-    if (!form.dosage_form) errors.dosage_form = 'Selecciona una presentación.';
-    if (!form.frequency) errors.frequency = 'Selecciona una frecuencia.';
-    if (!DURATION_PATTERN.test(form.duration.trim())) errors.duration = 'Usa un formato como «5 días».';
-  }
   if (form.instructions.trim().length < 10 || form.instructions.trim().length > 1000) errors.instructions = 'Escribe indicaciones entre 10 y 1000 caracteres.';
   if (form.side_effects.length > 500) errors.side_effects = 'No puede superar 500 caracteres.';
   if (form.clinical_notes.length > 1000) errors.clinical_notes = 'No puede superar 1000 caracteres.';
@@ -82,7 +97,7 @@ export default function TreatmentHistory() {
   if (state.status !== 'ready') {
     return (
       <DoctorLayout title="Historial del tratamiento">
-        <Link to="/panel-doctor" className="text-xs font-bold text-blue-700 hover:underline">← Volver a Pacientes Activos</Link>
+        <Link to="/panel-doctor/monitoreo" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:underline"><IconArrowLeft className="h-3.5 w-3.5 shrink-0" />Volver a Monitoreo</Link>
         {state.status === 'loading' ? (
           <Loading label="Cargando historial..." className="mt-3 space-y-5">
             <SkeletonCard lines={3} />
@@ -109,12 +124,13 @@ export default function TreatmentHistory() {
 
   return (
     <DoctorLayout title="Historial del tratamiento" subtitle="Controles, medicación, cambios y reportes del paciente en una sola línea de tiempo.">
-      <Link to="/panel-doctor" className="text-xs font-bold text-blue-700 hover:underline">← Volver a Pacientes Activos</Link>
+      <Link to="/panel-doctor/monitoreo" className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:underline"><IconArrowLeft className="h-3.5 w-3.5 shrink-0" />Volver a Monitoreo</Link>
 
       <header className="mt-3 flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             {patient.full_name} · HC-{String(patient.id).padStart(5, '0')}{patient.national_id ? ` · C.I. ${patient.national_id}` : ''}
+            {' · '}<Link to={`/panel-doctor/pacientes/${patient.id}/historia`} className="normal-case text-blue-700 hover:underline">Historia clínica completa</Link>
           </p>
           <h2 className="mt-1 text-xl font-black text-slate-900 [overflow-wrap:anywhere]">{plan.medication_name || plan.title}</h2>
           {plan.medication_name && (
@@ -139,12 +155,8 @@ export default function TreatmentHistory() {
           </span>
           {plan.is_active && !editing && !registering && (
             <>
-              <button type="button" onClick={() => { setMessage(''); setRegistering(true); }} className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700">
-                Registrar control
-              </button>
-              <button type="button" onClick={() => { setMessage(''); setEditing(true); }} className="rounded-xl border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50">
-                Editar tratamiento
-              </button>
+              <IconButton icon={IconCalendar} tone="primary" label="Registrar control" onClick={() => { setMessage(''); setRegistering(true); }} />
+              <IconButton icon={IconPencil} tone="primary" label="Editar tratamiento" onClick={() => { setMessage(''); setEditing(true); }} />
             </>
           )}
         </div>
@@ -185,7 +197,7 @@ export default function TreatmentHistory() {
       )}
 
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <Phases plan={plan} onAdvanced={(text) => { setMessage(text); load(); }} />
+        <Phases plan={plan} />
         <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="text-sm font-bold text-slate-900">Piezas en tratamiento</h3>
           <div className="mt-3">
@@ -234,7 +246,7 @@ export default function TreatmentHistory() {
   );
 }
 
-function TimelineItem({ event, planActive, last }) {
+export function TimelineItem({ event, planActive, last }) {
   const marker = event.type === 'report'
     ? <span className="mt-1 flex h-3 w-3 items-center justify-center"><AlertDot color={event.alert_color} /></span>
     : <span aria-hidden="true" className={`mt-1 block h-3 w-3 rounded-full ring-4 ring-white ${MARKER[event.type]}`} />;
@@ -246,7 +258,7 @@ function TimelineItem({ event, planActive, last }) {
         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
           <p className="font-bold text-slate-900">
             {event.type === 'report'
-              ? `${ALERT_LABELS[event.alert_color]} · EVA ${event.pain_level}${event.postoperative_day !== null ? ` · Día ${event.postoperative_day}` : ''}`
+              ? `${ALERT_LABELS[event.alert_color]} · ${event.pain_level == null ? 'sin EVA' : `EVA ${event.pain_level}`}${event.postoperative_day !== null ? ` · Día ${event.postoperative_day}` : ''}`
               : event.title}
           </p>
           {/* Un control solo tiene fecha: no se le inventa una hora. */}
@@ -328,7 +340,7 @@ function EventBody({ event, planActive }) {
 }
 
 // Datos propios del tratamiento o del control, tal como los define su protocolo.
-function ClinicalData({ items }) {
+export function ClinicalData({ items }) {
   if (!items?.length) return null;
   return (
     <dl className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-600">
@@ -343,13 +355,15 @@ function ClinicalData({ items }) {
 }
 
 function EditTreatment({ plan, onCancel, onSaved }) {
-  const isMedication = Boolean(plan.medication_name);
+  const [initialItems] = useState(() => toItems(plan));
+  const [prescribes, setPrescribes] = useState(initialItems.length > 0);
+  const [items, setItems] = useState(() => (initialItems.length ? initialItems : [newMedication()]));
+  const [medicationErrors, setMedicationErrors] = useState({ list: [], general: '' });
   const [form, setForm] = useState(() => Object.fromEntries(EDIT_FIELDS.map((field) => [field, plan[field] ?? (field === 'teeth' ? [] : '')])));
   const [dentition, setDentition] = useState((plan.teeth ?? []).some((tooth) => tooth >= 51) ? 'primary' : 'permanent');
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const strengths = [...new Set([...DEFAULT_STRENGTHS, plan.strength].filter(Boolean))];
 
   const update = ({ target }) => {
     setForm((current) => ({ ...current, [target.name]: target.value }));
@@ -359,20 +373,24 @@ function EditTreatment({ plan, onCancel, onSaved }) {
 
   const save = async (event) => {
     event.preventDefault();
-    const nextErrors = validate(form, isMedication);
+    const nextErrors = validate(form);
+    const listErrors = prescribes ? validateMedications(items) : null;
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length) {
+    setMedicationErrors({ list: listErrors ?? [], general: '' });
+    if (Object.keys(nextErrors).length || listErrors) {
       setError('Revisa los campos marcados antes de guardar.');
       return;
     }
     // Solo viaja lo que cambió: así el historial registra exactamente la modificación.
     const changes = Object.fromEntries(
       EDIT_FIELDS
-        .filter((field) => isMedication || !['medication_name', 'strength', 'dosage_form', 'frequency', 'duration'].includes(field))
         .map((field) => [field, typeof form[field] === 'string' ? form[field].trim() : form[field]])
         // Las piezas son una lista: se comparan por contenido.
         .filter(([field, value]) => JSON.stringify(value) !== JSON.stringify(plan[field] ?? (field === 'teeth' ? [] : ''))),
     );
+    const nextItems = prescribes ? items : [];
+    const medicationChanged = medicationKey(nextItems) !== medicationKey(initialItems);
+    if (medicationChanged) changes.medications = medicationsPayload(nextItems, form.instructions.trim()).medications;
     if (!Object.keys(changes).length) {
       onCancel();
       return;
@@ -380,12 +398,12 @@ function EditTreatment({ plan, onCancel, onSaved }) {
     setSaving(true);
     try {
       await api.patch(`/treatment-plans/${plan.id}/`, changes);
-      const medicationChanged = ['medication_name', 'strength', 'dosage_form', 'frequency', 'duration'].some((field) => field in changes);
       onSaved(medicationChanged
-        ? 'Tratamiento actualizado: se emitió una receta nueva y la anterior quedó en el historial. El paciente ya ve la indicación vigente.'
+        ? 'Tratamiento actualizado: se emitió la receta nueva y la anterior quedó en el historial. El paciente ya ve la medicación vigente.'
         : 'Tratamiento actualizado. El cambio quedó registrado en la línea de tiempo.');
     } catch (requestError) {
       const data = requestError.response?.data || {};
+      if (data.medications) setMedicationErrors(medicationListErrors(data.medications));
       setErrors(Object.fromEntries(Object.entries(data).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value])));
       setError(data.detail || 'No se pudo guardar el cambio. Revisa los datos e inténtalo nuevamente.');
       setSaving(false);
@@ -397,7 +415,7 @@ function EditTreatment({ plan, onCancel, onSaved }) {
       <div>
         <h3 className="text-sm font-bold text-slate-900">Editar tratamiento en curso</h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          {isMedication ? 'Si cambias la medicación se emite una receta nueva; la anterior se conserva en el historial.' : 'Los cambios quedan registrados en la línea de tiempo.'}
+          Si cambias la medicación se emite una receta nueva; la anterior se conserva en el historial. Todo cambio queda en la línea de tiempo.
         </p>
       </div>
       {error && (
@@ -405,18 +423,24 @@ function EditTreatment({ plan, onCancel, onSaved }) {
           <IconAlertTriangle className="h-4 w-4 shrink-0" />{error}
         </p>
       )}
-      {isMedication && (
-        <fieldset className="grid min-w-0 gap-3 sm:grid-cols-2">
-          <legend className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Medicación</legend>
-          <div className="sm:col-span-2">
-            <Input label="Medicamento" name="medication_name" value={form.medication_name} onChange={update} maxLength={120} error={errors.medication_name} />
-          </div>
-          <Select label="Concentración" name="strength" value={form.strength} onChange={update} options={strengths} error={errors.strength} />
-          <Select label="Presentación" name="dosage_form" value={form.dosage_form} onChange={update} options={[...new Set([...DOSAGE_FORMS, plan.dosage_form].filter(Boolean))]} error={errors.dosage_form} />
-          <Select label="Frecuencia" name="frequency" value={form.frequency} onChange={update} options={[...new Set([...FREQUENCIES, plan.frequency].filter(Boolean))]} error={errors.frequency} />
-          <Input label="Duración" name="duration" value={form.duration} onChange={update} maxLength={20} placeholder="Ej. 5 días" error={errors.duration} />
-        </fieldset>
-      )}
+      <fieldset className="min-w-0 space-y-3">
+        <legend className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">Medicación</legend>
+        <CheckField
+          name="prescribes_medication"
+          label="Este tratamiento lleva medicación"
+          hint="Puedes añadir otro medicamento, editar el que está recetado o quitarlo."
+          checked={prescribes}
+          onChange={(event) => { setPrescribes(event.target.checked); setError(''); }}
+        />
+        {prescribes && (
+          <MedicationList
+            items={items}
+            errors={medicationErrors.list}
+            general={medicationErrors.general}
+            onChange={(next) => { setItems(next); setMedicationErrors({ list: [], general: '' }); setError(''); }}
+          />
+        )}
+      </fieldset>
       <div className="grid gap-3 sm:grid-cols-2">
         <TextArea label="Indicaciones para el paciente" name="instructions" value={form.instructions} onChange={update} maxLength={1000} error={errors.instructions} />
         <TextArea label="Efectos que debe observar (opcional)" name="side_effects" value={form.side_effects} onChange={update} maxLength={500} error={errors.side_effects} />
@@ -433,11 +457,11 @@ function EditTreatment({ plan, onCancel, onSaved }) {
         {errors.teeth && <span className="mt-1 block text-[11px] text-rose-600">{errors.teeth}</span>}
       </div>
       <div className="flex flex-wrap justify-end gap-2">
-        <button type="button" onClick={onCancel} disabled={saving} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-          Cancelar
+        <button type="button" onClick={onCancel} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+          <IconX className="h-3.5 w-3.5 shrink-0" />Cancelar
         </button>
-        <button type="submit" disabled={saving} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50">
-          {saving ? 'Guardando...' : 'Guardar cambios'}
+        <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50">
+          <IconSave className="h-3.5 w-3.5 shrink-0" />{saving ? 'Guardando...' : 'Guardar cambios'}
         </button>
       </div>
     </form>
@@ -445,29 +469,6 @@ function EditTreatment({ plan, onCancel, onSaved }) {
 }
 
 const fieldClass = (error) => `mt-1 w-full rounded-xl border ${error ? 'border-rose-400' : 'border-slate-200'} bg-white p-3 text-sm font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100`;
-
-function Input({ label, error, ...props }) {
-  return (
-    <label className="block text-xs font-bold text-slate-700">
-      {label}
-      <input {...props} className={fieldClass(error)} />
-      {error && <span className="mt-1 block text-[11px] font-normal text-rose-600">{error}</span>}
-    </label>
-  );
-}
-
-function Select({ label, options, error, ...props }) {
-  return (
-    <label className="block text-xs font-bold text-slate-700">
-      {label}
-      <select {...props} className={fieldClass(error)}>
-        <option value="">Selecciona una opción</option>
-        {options.map((option) => <option key={option} value={option}>{option}</option>)}
-      </select>
-      {error && <span className="mt-1 block text-[11px] font-normal text-rose-600">{error}</span>}
-    </label>
-  );
-}
 
 function TextArea({ label, error, ...props }) {
   return (
@@ -479,34 +480,16 @@ function TextArea({ label, error, ...props }) {
   );
 }
 
-// Fases del tratamiento: el odontólogo cierra la actual y comienza la siguiente.
-function Phases({ plan, onAdvanced }) {
-  const [advancing, setAdvancing] = useState(false);
-  const [error, setError] = useState('');
+// Fases del tratamiento, solo de lectura: la fase se completa al registrar el control que la cierra.
+function Phases({ plan }) {
   const phases = plan.phases ?? [];
-  const hasNext = phases.some((phase) => phase.status === 'pending');
-
-  const advance = async () => {
-    setAdvancing(true);
-    setError('');
-    try {
-      const { data } = await api.post(`/treatment-plans/${plan.id}/advance-phase/`);
-      onAdvanced(`Fase actual: ${data.current_phase.name}. El seguimiento diario se reinicia desde hoy.`);
-    } catch (requestError) {
-      setError(requestError.response?.data?.detail || 'No se pudo avanzar de fase.');
-    } finally {
-      setAdvancing(false);
-    }
-  };
 
   return (
     <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-slate-900">Fases del tratamiento</h3>
-        {plan.is_active && hasNext && (
-          <button type="button" onClick={advance} disabled={advancing} className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-100 disabled:opacity-50">
-            {advancing ? 'Avanzando...' : 'Pasar a la siguiente fase'}
-          </button>
+        {plan.is_active && phases.some((phase) => phase.status === 'pending') && (
+          <p className="text-[11px] text-slate-500">Para pasar a la siguiente, márcalo al registrar el control.</p>
         )}
       </div>
       <ol className="mt-3 space-y-2">
@@ -529,7 +512,6 @@ function Phases({ plan, onAdvanced }) {
           </li>
         ))}
       </ol>
-      {error && <p role="alert" className="mt-2 text-xs text-rose-600">{error}</p>}
     </section>
   );
 }

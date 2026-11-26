@@ -164,20 +164,32 @@ STATIC_URL = 'static/'
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+# Con EMAIL_HOST se usa el SMTP institucional; sin él, los correos se muestran en la consola (desarrollo).
+EMAIL_HOST = env('EMAIL_HOST', default='')
+EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_USE_SSL = env.bool('EMAIL_USE_SSL', default=False)
+EMAIL_BACKEND = env('EMAIL_BACKEND', default=(
+    'django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST else 'django.core.mail.backends.console.EmailBackend'
+))
 EMAIL_IN_BACKGROUND = True
 # Un servidor de correo que no responde no puede bloquear al sistema.
 EMAIL_TIMEOUT = env.int('EMAIL_TIMEOUT', default=10)
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='alertas@dentalsense.example')
+# Dirección del portal que se indica en los correos (credenciales, recordatorios).
+PORTAL_URL = env('PORTAL_URL', default='http://localhost:5173').rstrip('/')
 
 # IA generativa (asistente, resúmenes y explicaciones). El triaje no depende de ella: sin clave o con
 # AI_ENABLED=False el sistema usa sus alternativas locales. Proveedor: Google Gemini (google-genai).
 GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
 AI_ENABLED = env.bool('AI_ENABLED', default=bool(GEMINI_API_KEY))
-AI_MODEL = env('AI_MODEL', default='gemini-4-hydrogen')
+# Flash-lite: el más rápido medido con la clave del proyecto (primer texto en ~1,6 s), adecuado para conversar.
+AI_MODEL = env('AI_MODEL', default='gemini-3.5-flash-lite')
 AI_TIMEOUT_SECONDS = env.float('AI_TIMEOUT_SECONDS', default=20.0)
 # Opcional: tokens de razonamiento, solo en los modelos que lo admiten (vacío = lo decide el modelo).
-# gemini-4-hydrogen no lo admite; para respuestas más rápidas del asistente usa AI_MODEL=gemini-3.5-flash-lite.
+# gemini-4-hydrogen no lo admite.
 AI_THINKING_BUDGET = env.int('AI_THINKING_BUDGET', default=None)
 # Al llegar una alerta roja se prepara un resumen para el odontólogo en segundo plano.
 AI_SUMMARY_ON_ALERT = env.bool('AI_SUMMARY_ON_ALERT', default=True)

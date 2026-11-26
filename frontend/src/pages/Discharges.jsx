@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import DoctorLayout from '../components/DoctorLayout';
-import { IconSearch } from '../components/Icons';
+import { IconFileText, IconHistory, IconSearch } from '../components/Icons';
 import api from '../services/api';
+import IconButton from '../components/IconButton';
 
 const formatDate = (value) => new Date(`${value}T00:00:00`).toLocaleDateString('es-EC');
 
@@ -40,7 +41,7 @@ export default function Discharges() {
   return (
     <DoctorLayout
       title="Historial y altas"
-      subtitle="Tratamientos cerrados de tus pacientes. Da de alta desde la ficha en Pacientes Activos."
+      subtitle="Tratamientos cerrados de tus pacientes. Da de alta desde la ficha en Monitoreo."
     >
       <dl className="mb-6 grid gap-4 md:grid-cols-2">
         <Summary title="Tratamientos cerrados" value={items.length} />
@@ -64,7 +65,7 @@ export default function Discharges() {
         </div>
 
         <div className="mt-5 overflow-x-auto">
-          <table className="w-full min-w-[700px] text-left text-xs">
+          <table className="w-full min-w-[860px] text-left text-xs">
             <thead className="border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-400">
               <tr>
                 <th scope="col" className="p-3">Paciente</th>
@@ -72,6 +73,7 @@ export default function Discharges() {
                 <th scope="col" className="p-3">Inicio y alta</th>
                 <th scope="col" className="p-3">Días de seguimiento</th>
                 <th scope="col" className="p-3">Alertas de riesgo alto</th>
+                <th scope="col" className="p-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -92,10 +94,16 @@ export default function Discharges() {
                       {item.high_alerts || 'Ninguna'}
                     </span>
                   </td>
+                  <td className="p-3">
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      <IconButton to={`/panel-doctor/pacientes/${item.patient_id}/historia`} icon={IconHistory} tone="primary" label={`Historia clínica de ${item.patient_name}`} />
+                      <IconButton to={`/panel-doctor/tratamientos/${item.id}`} icon={IconFileText} label={`Ver el tratamiento ${item.procedure}`} />
+                    </div>
+                  </td>
                 </tr>
               ))}
               {!items.length && !loading && (
-                <tr><td colSpan="5" className="p-6 text-center text-slate-500">Aún no hay tratamientos cerrados.</td></tr>
+                <tr><td colSpan="6" className="p-6 text-center text-slate-500">Aún no hay tratamientos cerrados.</td></tr>
               )}
             </tbody>
           </table>

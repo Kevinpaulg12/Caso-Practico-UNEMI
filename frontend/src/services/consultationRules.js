@@ -11,6 +11,8 @@ export const EMPTY_MEDICATION = {
   dosage_form: '',
   frequency: '',
   duration: '',
+  // Vía, toma con alimentos y efectos frecuentes: se completan al elegir el fármaco.
+  notes: '',
 };
 
 export function today() {
@@ -70,6 +72,7 @@ export function validateMedication(medication) {
   if (!medication.dosage_form) errors.dosage_form = 'Selecciona una presentación.';
   if (!medication.frequency) errors.frequency = 'Selecciona una frecuencia.';
   if (!/^[1-9]\d{0,2}$/.test(medication.duration)) errors.duration = 'Indica entre 1 y 999 días.';
+  if ((medication.notes ?? '').length > 500) errors.notes = 'No puede superar 500 caracteres.';
   return errors;
 }
 
@@ -88,6 +91,7 @@ export function medicationPayload(medication, instructions) {
       medication.dosage_form.toLowerCase(),
       medication.frequency.toLowerCase(),
       `durante ${medication.duration} días`,
+      (medication.notes ?? '').trim().replace(/\.$/, ''),
       instructions,
     ].filter(Boolean).join('. '),
   };
@@ -128,4 +132,38 @@ export function flattenApiErrors(data, rename = {}) {
     else errors[rename[key] ?? key] = Array.isArray(value) ? value[0] : value;
   }
   return { errors, clinical };
+}
+
+// --- Varios medicamentos por receta ------------------------------------------------------------------
+export const MAX_MEDICATIONS = 10;
+let medicationSeed = 0;
+
+// Un medicamento vacío con una clave estable para la lista (no viaja a la API).
+export function newMedication() {
+  medicationSeed += 1;
+  return { ...EMPTY_MEDICATION, uid: `med-${medicationSeed}` };
+}
+
+// Errores por medicamento, alineados con la lista; null si todos son válidos.
+export function validateMedications(items) {
+  const errors = items.map(validateMedication);
+  const names = items.map((item) => item.medication_name.trim().toLowerCase());
+  names.forEach((name, index) => {
+    if (name && names.indexOf(name) !== index) errors[index].medication_name = 'Este medicamento ya está en la receta.';
+  });
+  return errors.some((item) => Object.keys(item).length) ? errors : null;
+}
+
+// La receta completa para la API: { medications: [...] }.
+export function medicationsPayload(items, instructions) {
+  return { medications: items.map((item) => medicationPayload(item, instructions)) };
+}
+
+// Errores de la API para la lista ({medications: [{campo: [msg]}]} o un mensaje general).
+export function medicationListErrors(value) {
+  if (!Array.isArray(value)) return { list: [], general: Array.isArray(value) ? value[0] : value || '' };
+  return {
+    list: value.map((item) => Object.fromEntries(Object.entries(item || {}).map(([key, message]) => [key, Array.isArray(message) ? message[0] : message]))),
+    general: '',
+  };
 }

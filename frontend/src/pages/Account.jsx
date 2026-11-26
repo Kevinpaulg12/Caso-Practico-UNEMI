@@ -6,10 +6,10 @@ import AdminLayout from '../components/AdminLayout';
 import DoctorLayout from '../components/DoctorLayout';
 import PatientLayout from '../components/PatientLayout';
 import Loading, { SkeletonCard } from '../components/Skeleton';
-import { IconUser, IconLock, IconCheckCircle, IconAlertTriangle } from '../components/Icons';
+import { IconAlertTriangle, IconArrowLeft, IconCheckCircle, IconLock, IconSave, IconUser } from '../components/Icons';
 
 const LAYOUTS = { DOC: DoctorLayout, ADM: AdminLayout };
-const HOME_PATHS = { DOC: '/panel-doctor', ADM: '/panel-admin' };
+const HOME_PATHS = { DOC: '/panel-doctor/monitoreo', ADM: '/panel-admin' };
 const INPUT = 'mt-1 w-full rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 text-xs font-normal text-slate-900 outline-none focus:border-blue-500 focus:bg-white';
 
 // La etiqueta envuelve al campo: quedan asociados sin depender de identificadores.
@@ -156,8 +156,8 @@ export default function Account() {
             </li>
           </ul>
           {!firstLogin && (
-            <Link to={homePath} className="mb-1.5 hidden rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:inline-block">
-              ← Volver al panel
+            <Link to={homePath} className="inline-flex items-center gap-1.5 mb-1.5 hidden rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:inline-block">
+              <IconArrowLeft className="h-3.5 w-3.5 shrink-0" />Volver al panel
             </Link>
           )}
         </nav>
@@ -200,9 +200,9 @@ export default function Account() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {saving ? 'Guardando...' : 'Guardar cambios'}
+                  <IconSave className="h-3.5 w-3.5 shrink-0" />{saving ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </p>
             </form>
@@ -225,9 +225,9 @@ export default function Account() {
               <button
                 type="submit"
                 disabled={saving}
-                className="mt-2 rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 mt-2 rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {saving ? 'Actualizando...' : 'Actualizar contraseña'}
+                <IconLock className="h-3.5 w-3.5 shrink-0" />{saving ? 'Actualizando...' : 'Actualizar contraseña'}
               </button>
             </form>
           )}

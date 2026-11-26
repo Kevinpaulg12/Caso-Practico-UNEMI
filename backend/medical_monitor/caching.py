@@ -10,6 +10,8 @@ from django.db.models.signals import post_delete, post_save
 
 PROTOCOL_CATALOG = 'catalogo:protocolos'
 MEDICATION_GUIDES = 'catalogo:guias-medicacion'
+VADEMECUM = 'catalogo:vademecum'
+PATIENT_GUIDES = 'catalogo:guias-paciente'
 ALERT_SETTINGS = 'catalogo:umbrales-alerta'
 
 
@@ -36,19 +38,19 @@ def medication_guides():
     return cached(MEDICATION_GUIDES, lambda: list(MedicationGuide.objects.all()))
 
 
-def _forget(key):
+def _forget(*keys):
     def handler(**kwargs):
         try:
-            cache.delete(key)
+            cache.delete_many(keys)
         except Exception:
             pass
     return handler
 
 
 def connect_invalidation():
-    from .models import AlertSettings, ClinicalProcedure, MedicationGuide
-    for model, key in ((ClinicalProcedure, PROTOCOL_CATALOG), (MedicationGuide, MEDICATION_GUIDES),
-                       (AlertSettings, ALERT_SETTINGS)):
-        handler = _forget(key)
-        post_save.connect(handler, sender=model, weak=False, dispatch_uid=f'cache-save-{key}')
-        post_delete.connect(handler, sender=model, weak=False, dispatch_uid=f'cache-delete-{key}')
+    from .models import AlertSettings, ClinicalProcedure, Medication, MedicationGuide
+    for model, keys in ((ClinicalProcedure, (PROTOCOL_CATALOG,)), (MedicationGuide, (MEDICATION_GUIDES, PATIENT_GUIDES)),
+                        (Medication, (VADEMECUM, PATIENT_GUIDES)), (AlertSettings, (ALERT_SETTINGS,))):
+        handler = _forget(*keys)
+        post_save.connect(handler, sender=model, weak=False, dispatch_uid=f'cache-save-{model.__name__}')
+        post_delete.connect(handler, sender=model, weak=False, dispatch_uid=f'cache-delete-{model.__name__}')

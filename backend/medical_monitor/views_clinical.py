@@ -12,10 +12,13 @@ from rest_framework.views import APIView
 from users.models import User, patients_of
 
 from .audit import record_audit
+from .clinical_history import build_clinical_history
+from .doctor_report import treatment_report
 from .models import (
     AlertSettings,
     AuditEvent,
     ClinicalProcedure,
+    InstructionPreset,
     MedicationGuide,
     PatientReport,
     Prescription,
@@ -26,6 +29,7 @@ from .serializers_clinical import (
     AlertSettingsSerializer,
     AuditEventSerializer,
     ClinicalProcedureSerializer,
+    InstructionPresetSerializer,
     MedicationGuideSerializer,
 )
 from .services import detect_symptoms
@@ -135,6 +139,29 @@ class MedicationGuideViewSet(viewsets.ReadOnlyModelViewSet):
         return base_permissions(IsAdminRole)
 
 
+class InstructionPresetViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Frases propias del odontólogo para indicaciones, dieta y efectos: cada uno ve solo las suyas."""
+
+    serializer_class = InstructionPresetSerializer
+    pagination_class = None
+
+    def get_permissions(self):
+        return base_permissions(IsDoctorRole)
+
+    def get_queryset(self):
+        queryset = InstructionPreset.objects.filter(doctor=self.request.user)
+        field = self.request.query_params.get('field')
+        return queryset.filter(field=field) if field else queryset
+
+    def perform_create(self, serializer):
+        serializer.save(doctor=self.request.user)
+
+
 def _scoped_doctor(request):
     if request.user.role != User.Roles.DOCTOR:
         raise PermissionDenied('Solo el odontólogo puede consultar esta información.')
@@ -172,7 +199,8 @@ class ReportsSummaryView(APIView):
                 day = item['postoperative_day']
                 if day is None:
                     day = (timezone.localtime(item['created_at']).date() - first).days
-                if day <= 14:
+                # En el seguimiento por conversación el paciente puede no haber dicho su dolor.
+                if day <= 14 and item['pain_level'] is not None:
                     pain_by_day[day].append(item['pain_level'])
 
         latest_risk = Counter(items[-1]['risk_level'] for items in by_patient.values())
@@ -191,6 +219,8 @@ class ReportsSummaryView(APIView):
             ],
             'top_symptoms': [{'label': label, 'count': count} for label, count in symptoms.most_common(5)],
             'high_pain_threshold': AlertSettings.load().high_pain,
+            # Lo que hizo el odontólogo en el periodo: tratamientos, controles, recetas y altas.
+            'activity': treatment_report(doctor, since),
         })
 
 
@@ -263,3 +293,14 @@ class PatientDischargeView(APIView):
         ])
         record_audit(doctor, f'Dio de alta a {patient.username} ({len(plan_ids)} tratamientos)', 'Altas')
         return Response({'plans_closed': len(plan_ids), 'prescriptions_closed': len(prescription_ids)})
+
+
+class ClinicalHistoryView(APIView):
+    """Historia clínica completa del paciente para cualquier odontólogo de la clínica (con auditoría)."""
+
+    def get(self, request, patient_id):
+        if request.user.role != User.Roles.DOCTOR:
+            raise PermissionDenied('Solo los odontólogos de la clínica consultan la historia clínica.')
+        patient = get_object_or_404(User.objects.select_related('profile__primary_doctor'), pk=patient_id, role=User.Roles.PATIENT)
+        record_audit(request.user, f'Consultó la historia clínica de {patient.username}', 'Historia clínica')
+        return Response(build_clinical_history(patient))

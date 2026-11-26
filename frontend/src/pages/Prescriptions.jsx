@@ -1,16 +1,17 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import PatientLayout from '../components/PatientLayout';
 import { PATIENT_SECTION_IDS, patientSectionPath } from '../components/patientSections';
 import Loading, { SkeletonCard, SkeletonRows } from '../components/Skeleton';
-import ChartLoading from '../components/charts/ChartLoading';
-import { buildSeries } from '../services/evolution';
 import { fetchAll } from '../services/pagination';
 import { currentPlan } from '../services/plans';
+import AppointmentRequests from '../components/patient/AppointmentRequests';
 import ConversationalAssistant from '../components/patient/ConversationalAssistant';
 import CareChecklist from '../components/patient/CareChecklist';
+import MyMedication from '../components/patient/MyMedication';
+import PastTreatments from '../components/patient/PastTreatments';
 import PlainInstructions from '../components/patient/PlainInstructions';
 import RemindersBanner from '../components/patient/RemindersBanner';
 import TreatmentProgress from '../components/patient/TreatmentProgress';
@@ -19,30 +20,12 @@ import {
   IconCheckCircle,
   IconSparkles,
   IconAlertTriangle,
-  IconSend,
+  IconArrowRight,
+  IconCalendar,
+  IconRefresh,
 } from '../components/Icons';
 
-const PainChart = lazy(() => import('../components/charts/PainChart'));
-
-function getSeverityBadgeClass(severity) {
-  switch (severity?.toLowerCase()) {
-    case 'alta':
-      return 'border-rose-200 bg-rose-100 text-rose-700';
-    case 'media':
-      return 'border-amber-200 bg-amber-100 text-amber-700';
-    default:
-      return 'border-emerald-200 bg-emerald-100 text-emerald-700';
-  }
-}
-
-const ENTITY_LABELS = { MEDICAMENTO: 'medicamento', DOSIS: 'dosis', FRECUENCIA: 'frecuencia', SINTOMA: 'síntoma' };
-
-function TreatmentCard({ prescription }) {
-  const severity = prescription.nlp_severity || 'Baja';
-  const entities = Array.isArray(prescription.extracted_entities)
-    ? prescription.extracted_entities
-    : [];
-
+function TreatmentCard({ prescription, onShowEffects }) {
   return (
     <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow [overflow-wrap:anywhere]">
       <div className="flex items-start gap-3.5">
@@ -65,13 +48,6 @@ function TreatmentCard({ prescription }) {
               >
                 {prescription.is_active ? 'ACTIVA' : 'INACTIVA'}
               </span>
-              <span
-                className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${getSeverityBadgeClass(
-                  severity,
-                )}`}
-              >
-                Severidad: {severity}
-              </span>
             </div>
           </div>
 
@@ -87,34 +63,9 @@ function TreatmentCard({ prescription }) {
             </div>
           )}
 
-          {entities.length > 0 && (
-            <div className="mt-3 border-t border-slate-100 pt-3">
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Fármacos y dosis identificados
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {entities.map((entity, index) => (
-                  <span
-                    key={`${entity.text}-${entity.label}-${index}`}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs text-slate-700 font-medium"
-                  >
-                    <span>{entity.text}</span>
-                    <span className="text-[10px] font-bold text-blue-600">({ENTITY_LABELS[entity.label] ?? entity.label})</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {prescription.medication_guidance && (
-            <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-xs text-slate-700">
-              <p className="font-bold text-blue-900">Efectos esperados y recomendaciones</p>
-              <p className="mt-1">{prescription.medication_guidance.common_effects}</p>
-              <p className="mt-2 font-semibold text-rose-700">
-                Consulta de inmediato si: {prescription.medication_guidance.warning_signs}
-              </p>
-            </div>
-          )}
+          <button type="button" onClick={onShowEffects} className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-blue-700 hover:bg-blue-100">
+            <IconArrowRight className="h-3.5 w-3.5" />Cómo tomarlo y posibles efectos
+          </button>
         </div>
       </div>
     </article>
@@ -149,6 +100,12 @@ function CarePlanCard({ plan }) {
           <p className="mt-2 whitespace-pre-line rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-700 border border-slate-100">
             {plan.instructions}
           </p>
+          {plan.diet_instructions && (
+            <div className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-xs text-emerald-900">
+              <strong className="block text-[11px] uppercase tracking-wide text-emerald-700">Dieta</strong>
+              <span className="whitespace-pre-line">{plan.diet_instructions}</span>
+            </div>
+          )}
 
           <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900">
             <strong className="block text-[11px] uppercase tracking-wide text-blue-700">Pauta para hoy</strong>
@@ -160,104 +117,15 @@ function CarePlanCard({ plan }) {
   );
 }
 
-// La misma gráfica que ve el odontólogo: EVA por día de seguimiento frente a lo esperado para el tratamiento.
-function PainEvolution({ reports, plan }) {
-  const series = buildSeries(reports, plan?.procedure_detail?.expected_curve ?? []);
-
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-sm font-bold text-slate-900">Evolución de Dolor (EVA)</h2>
-      <p className="text-xs text-slate-500">Tu dolor por día desde tu última intervención (D0 es el día de la intervención)</p>
-
-      {reports.length === 0 ? (
-        <p className="mt-4 rounded-xl bg-slate-50 py-6 text-center text-xs text-slate-400">Aún no hay puntos registrados</p>
-      ) : (
-        <div className="mt-3">
-          <Suspense fallback={<ChartLoading />}>
-            <PainChart
-              series={series}
-              reportedLabel="Tu dolor (máx. del día)"
-              expectedLabel="Lo esperado para tu procedimiento"
-              className="h-52"
-              ariaLabel={`Gráfica de tu dolor en ${reports.length} reportes; la tabla siguiente contiene los mismos datos.`}
-            />
-          </Suspense>
-        </div>
-      )}
-    </section>
-  );
-}
-
-const VISIBLE_REPORTS = 6;
-
-function ReportHistory({ reports, total }) {
-  const [showAll, setShowAll] = useState(false);
-  const visible = showAll ? reports : reports.slice(0, VISIBLE_REPORTS);
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <header className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-bold text-slate-900">Reportes Recientes</h2>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-          {total} {total === 1 ? 'registrado' : 'registrados'}
-        </span>
-      </header>
-
-      {reports.length === 0 ? (
-        <p className="mt-3 rounded-xl bg-slate-50 p-4 text-xs text-slate-500 text-center">
-          Tu primer autoreporte aparecerá aquí luego de enviarlo con el asistente.
-        </p>
-      ) : (
-        <>
-        <ul className="mt-3 space-y-2.5">
-          {visible.map((report) => (
-            <li key={report.id} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
-              <span
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-black ${
-                  report.pain_level >= 7
-                    ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                    : report.pain_level >= 4
-                    ? 'bg-amber-100 text-amber-700 border border-amber-200'
-                    : 'bg-blue-100 text-blue-700 border border-blue-200'
-                }`}
-              >
-                {report.pain_level}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap justify-between gap-2 text-[10px] text-slate-500">
-                  <span className="font-semibold text-slate-600">
-                    Dolor EVA ·{' '}
-                    {report.comparison === 'higher'
-                      ? 'Mayor'
-                      : report.comparison === 'lower'
-                      ? 'Menor'
-                      : 'Igual'}
-                  </span>
-                  <time dateTime={report.created_at}>{new Date(report.created_at).toLocaleDateString('es-EC')}</time>
-                </p>
-                <p className="mt-1 text-xs text-slate-700 line-clamp-2 [overflow-wrap:anywhere]">{report.message}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-          {reports.length > VISIBLE_REPORTS && (
-            <button type="button" aria-expanded={showAll} onClick={() => setShowAll((current) => !current)} className="mt-2.5 w-full rounded-xl border border-slate-200 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">
-              {showAll ? 'Mostrar menos' : `Mostrar los ${reports.length} reportes`}
-            </button>
-          )}
-        </>
-      )}
-    </section>
-  );
-}
-
 export default function Prescriptions() {
   const { user } = useAuth() ?? {};
   const navigate = useNavigate();
-  const [prescriptions, setPrescriptions] = useState([]);
-  const [carePlans, setCarePlans] = useState([]);
+  // Todo lo del paciente, vigente y cerrado: tras el alta conserva su historial y puede pedir una cita.
+  const [allPrescriptions, setPrescriptions] = useState([]);
+  const [allPlans, setCarePlans] = useState([]);
   const [profile, setProfile] = useState(null);
-  const [reports, setReports] = useState([]);
-  const [reportTotal, setReportTotal] = useState(0);
+  // Cambia con cada mensaje al asistente: refresca las citas pedidas.
+  const [activity, setActivity] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [welcome] = useState(() => {
@@ -269,16 +137,12 @@ export default function Prescriptions() {
   useEffect(() => {
     // Peticiones independientes: salen todas a la vez.
     Promise.all([
-      fetchAll('/prescriptions/'),
-      // Todas las páginas: la gráfica necesita cada día del seguimiento.
-      fetchAll('/patient-reports/'),
-      fetchAll('/treatment-plans/'),
+      fetchAll('/prescriptions/', { include_closed: 'true' }),
+      fetchAll('/treatment-plans/', { include_closed: 'true' }),
       api.get('/patient-profile/'),
     ])
-      .then(([prescriptionItems, reportItems, planItems, profileResponse]) => {
+      .then(([prescriptionItems, planItems, profileResponse]) => {
         setPrescriptions(prescriptionItems);
-        setReports(reportItems);
-        setReportTotal(reportItems.length);
         setCarePlans(planItems);
         const profileItems = profileResponse.data.results || profileResponse.data;
         setProfile(Array.isArray(profileItems) ? profileItems[0] : profileItems);
@@ -296,13 +160,14 @@ export default function Prescriptions() {
 
   const username = localStorage.getItem('logged_in_username') || 'paciente';
 
-  // El asistente ya clasificó y guardó el reporte: se añade al historial sin recargar.
-  const onReportSaved = (report) => {
-    setReports((current) => [report, ...current]);
-    setReportTotal((current) => current + 1);
-  };
+  const onActivity = () => setActivity((current) => current + 1);
 
+  const carePlans = allPlans.filter((plan) => plan.is_active);
+  const pastPlans = allPlans.filter((plan) => !plan.is_active);
+  const prescriptions = allPrescriptions.filter((item) => item.is_active);
   const activePlan = currentPlan(carePlans);
+  // Dado de alta: sin tratamiento vigente, pero con tratamientos anteriores.
+  const discharged = !activePlan && pastPlans.length > 0;
   const [searchParams] = useSearchParams();
   const section = PATIENT_SECTION_IDS.includes(searchParams.get('seccion')) ? searchParams.get('seccion') : 'tratamiento';
   const goTo = (id) => navigate(patientSectionPath(id));
@@ -310,7 +175,7 @@ export default function Prescriptions() {
   const [careOpened, setCareOpened] = useState(section === 'cuidados');
   if (section === 'cuidados' && !careOpened) setCareOpened(true);
 
-  const layout = { section, badges: { evolucion: reportTotal } };
+  const layout = { section };
 
   if (loading) {
     return (
@@ -336,9 +201,9 @@ export default function Prescriptions() {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-700"
+            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-700"
           >
-            Reintentar
+            <IconRefresh className="h-4 w-4" />Reintentar
           </button>
         </section>
       </PatientLayout>
@@ -353,7 +218,7 @@ export default function Prescriptions() {
         {activePlan && <RemindersBanner onAction={goTo} />}
 
         {/* Las secciones inactivas se ocultan sin desmontarse: un mensaje a medio escribir no se pierde. */}
-        <div id="seccion-tratamiento" hidden={section !== 'tratamiento'} className={`${section === 'tratamiento' ? 'grid' : 'hidden'} grid-cols-1 gap-6 lg:grid-cols-12`}>
+        <div id="seccion-tratamiento" hidden={section !== 'tratamiento'} className={`${section === 'tratamiento' ? 'grid' : 'hidden'} ds-enter grid-cols-1 gap-6 lg:grid-cols-12`}>
           <div className="min-w-0 space-y-6 lg:col-span-8">
             <section className="flex items-start gap-3.5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -364,9 +229,15 @@ export default function Prescriptions() {
                   Hola, {user?.full_name || welcome || username}
                 </h2>
                 <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                  Aquí sigues tu tratamiento odontológico: revisa tus indicaciones, cuéntale al asistente cómo te sientes
-                  y marca tus cuidados para que tu odontólogo conozca tu evolución.
+                  {discharged
+                    ? 'Tu odontólogo te dio de alta. Aquí siguen tus tratamientos anteriores y, si necesitas volver, puedes pedir una cita al asistente.'
+                    : 'Aquí sigues tu tratamiento odontológico: revisa tus indicaciones, consulta en Mis cuidados cómo tomar tu medicación y cuéntale al asistente cómo te sientes; tu odontólogo estará al tanto.'}
                 </p>
+                {discharged && (
+                  <button type="button" onClick={() => goTo('asistente')} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700">
+                    <IconCalendar className="h-4 w-4" />Pedir una cita
+                  </button>
+                )}
               </div>
             </section>
 
@@ -382,7 +253,7 @@ export default function Prescriptions() {
 
               {indications === 0 ? (
                 <p className="rounded-2xl border border-blue-200 bg-blue-50/70 p-6 text-center text-xs text-blue-800">
-                  Aún no tienes indicaciones registradas por tu doctor.
+                  {discharged ? 'No tienes indicaciones vigentes: tu tratamiento terminó.' : 'Aún no tienes indicaciones registradas por tu doctor.'}
                 </p>
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -390,25 +261,19 @@ export default function Prescriptions() {
                     <CarePlanCard key={`plan-${plan.id}`} plan={plan} />
                   ))}
                   {prescriptions.map((prescription) => (
-                    <TreatmentCard key={prescription.id} prescription={prescription} />
+                    <TreatmentCard key={prescription.id} prescription={prescription} onShowEffects={() => goTo('cuidados')} />
                   ))}
                 </div>
               )}
             </section>
 
             {activePlan && <PlainInstructions key={activePlan.id} planId={activePlan.id} />}
+
+            <PastTreatments plans={pastPlans} />
           </div>
 
           <aside className="min-w-0 space-y-4 lg:col-span-4">
-            {activePlan && (
-              <section className="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm">
-                <h2 className="text-sm font-bold text-slate-900">¿Cómo te sientes hoy?</h2>
-                <p className="mt-1 text-xs text-slate-500">Conversa con el asistente: te hará unas preguntas y tu odontólogo verá tu reporte en su panel.</p>
-                <button type="button" onClick={() => goTo('asistente')} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700">
-                  <IconSend className="h-4 w-4" /> Hablar con el asistente
-                </button>
-              </section>
-            )}
+            {(activePlan || discharged) && <AppointmentRequests refreshKey={activity} onRequest={() => goTo('asistente')} />}
 
             {profile?.age !== null && profile?.age !== undefined && (
               <section className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
@@ -422,46 +287,16 @@ export default function Prescriptions() {
           </aside>
         </div>
 
-        <div id="seccion-asistente" hidden={section !== 'asistente'} className="mx-auto max-w-3xl space-y-4">
-          <ConversationalAssistant canReport={Boolean(activePlan)} onReportSaved={onReportSaved} />
-          <button type="button" onClick={() => goTo('evolucion')} className="text-xs font-bold text-blue-700 hover:underline">
-            Ver cómo va tu evolución →
-          </button>
+        <div id="seccion-asistente" hidden={section !== 'asistente'} className="ds-enter mx-auto max-w-3xl space-y-4">
+          <ConversationalAssistant canTalk={Boolean(activePlan) || discharged} discharged={discharged} onActivity={onActivity} contact={profile?.doctor_contact ?? null} />
         </div>
 
-        <div id="seccion-cuidados" hidden={section !== 'cuidados'}>
+        {/* Mis cuidados: primero la medicación y sus posibles efectos; después, los cuidados del día. */}
+        <div id="seccion-cuidados" hidden={section !== 'cuidados'} className="ds-enter space-y-6">
+          <MyMedication prescriptions={allPrescriptions} />
           {careOpened && <CareChecklist canReport={Boolean(activePlan)} />}
         </div>
-
-        <div id="seccion-evolucion" hidden={section !== 'evolucion'} className={`${section === 'evolucion' ? 'grid' : 'hidden'} grid-cols-1 gap-6 lg:grid-cols-12`}>
-          <div className="min-w-0 lg:col-span-7">
-            <PainEvolution reports={reports} plan={activePlan} />
-          </div>
-          <div className="min-w-0 lg:col-span-5">
-            <ReportHistory reports={reports} total={reportTotal} />
-          </div>
-        </div>
-
-        {/* Fuera de las secciones: el aviso y el teléfono de emergencia se ven siempre. */}
-        <SafetyNotice />
       </div>
     </PatientLayout>
-  );
-}
-
-function SafetyNotice() {
-  return (
-    <aside aria-label="Aviso médico de seguridad" className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-xs text-amber-900">
-      <p className="min-w-0 max-w-3xl">
-        <strong className="mb-0.5 block text-[11px] font-bold uppercase tracking-wider text-amber-800">
-          Aviso médico de seguridad
-        </strong>
-        Esta plataforma asiste tu proceso pero no reemplaza la atención de urgencia. Si experimentas
-        hemorragia continua, fiebre alta o dificultad para respirar o tragar, comunícate de inmediato con la clínica.
-      </p>
-      <a href="tel:042700000" className="shrink-0 rounded-xl bg-rose-600 px-3 py-2 font-bold text-white hover:bg-rose-700">
-        Emergencias: 04 270 0000
-      </a>
-    </aside>
   );
 }
