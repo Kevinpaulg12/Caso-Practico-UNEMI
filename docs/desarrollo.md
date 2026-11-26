@@ -754,109 +754,137 @@ La respuesta llega paginada (`count`, `next`), incluye las entidades que extrajo
 
 ## Integración del sistema
 
-### Capas y conexión entre módulos
+La integración de las capas se realizó en un único equipo de desarrollo con Windows y Docker. Un solo comando de Docker Compose levanta cinco contenedores que se comunican por una red interna y se localizan por el nombre de su servicio (`db`, `redis`, `backend`). El navegador abre siempre la dirección http://localhost:5173, donde Vite sirve la interfaz. Las peticiones a la API no pasan por Vite: el cliente Axios las envía directamente a http://localhost:8000/api, que para el navegador es un origen distinto. Por eso Django autoriza de forma explícita ese origen con `django-cors-headers`. Tampoco usa cookies de sesión ni tokens CSRF: cada petición lleva el token JWT en la cabecera `Authorization: Bearer`. Django, a su vez, se conecta a PostgreSQL 15 mediante psycopg2 y a Redis 7 como caché. La Tabla 1 resume los servicios y los puertos del entorno.
 
-DentalSense AI se compone de tres capas que se comunican por la red:
+Tabla 1. Servicios y puertos del entorno de ejecución local
 
-- **Presentación:** la SPA de React que se ejecuta en el navegador.
-- **Lógica:** la API de Django, que concentra la autenticación, las reglas, el PLN y la IA.
-- **Datos:** PostgreSQL como almacenamiento persistente y Redis como caché.
+| Servicio | Imagen | Dirección | Observación |
+|-----------|------------------|--------------|--------------------------------|
+| frontend | node:20-alpine | localhost:5173 | Servidor de desarrollo de Vite; ejecuta npm install en cada arranque. |
+| backend | python:3.12-slim con el modelo es_core_news_sm de spaCy | localhost:8000 | Aplica las migraciones al arrancar y luego inicia el servidor de desarrollo (runserver 0.0.0.0:8000). |
+| db | postgres:15-alpine | localhost:5432 | Base mi_base_datos con el usuario admin; los datos persisten en el volumen postgres_data. |
+| redis | redis:7-alpine | Solo red interna (6379) | Caché de catálogos y contadores de límite de uso; 64 MB y sin persistencia en disco. |
+| scheduler | La misma imagen del backend | Sin puerto | Envía los recordatorios cada 15 minutos. |
 
-Además, dos servicios externos son opcionales: Google Gemini para la IA generativa y un servidor SMTP para los recordatorios por correo.
+Nota. Elaboración propia a partir de `docker-compose.yml` (commit 389fa9d).
+
+El Código 1 muestra los dos extremos de la conexión entre el frontend y el backend: la dirección base de la API en el cliente y el origen que el servidor acepta. La variable `VITE_API_URL` se fija en `docker-compose.yml` como `http://localhost:8000/api`. Vite la incrusta en el JavaScript que descarga el navegador, por lo que debe ser una dirección alcanzable desde el equipo del usuario, no el nombre interno `backend`.
+
+Código 1. Conexión entre el frontend y la API
+
+```js
+// frontend/src/services/api.js (líneas 3–8)
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+```
+
+```python
+# backend/core/settings.py (líneas 188–193)
+# Permitir que React (Vite) consuma la API
+CORS_ALLOW_HEADERS = (*default_headers, 'x-background-request')
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
+```
+
+Nota. Extractos literales de `frontend/src/services/api.js` y `backend/core/settings.py` (commit 389fa9d).
+
+La configuración sensible se entrega mediante variables de entorno. Docker Compose las toma del archivo `.env` de la raíz del proyecto, que no se versiona (`.gitignore` lo excluye); el repositorio incluye solo `.env.example`, con los nombres y valores de ejemplo. Fuera de Docker, `settings.py` lee el mismo archivo con `django-environ`. La Tabla 2 agrupa las variables principales. En el equipo de desarrollo, `DEBUG` permanece activo; para cualquier instalación distinta de la demostración local debe desactivarse y definirse `SECRET_KEY`, que en ese caso es obligatoria.
+
+Tabla 2. Variables de configuración principales
+
+| Grupo | Variables | Para qué sirven | Valor por defecto |
+|----------|------------------------------|------------------------|--------------------|
+| Django | DEBUG, SECRET_KEY, ALLOWED_HOSTS | Modo de depuración, clave criptográfica y dominios aceptados. | True en Docker; clave insegura solo con DEBUG; localhost y 127.0.0.1 |
+| Base de datos | DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_CONN_MAX_AGE | Conexión con PostgreSQL y reutilización de conexiones. | mi_base_datos, admin, db en Docker, 5432, 60 s |
+| Caché y rendimiento | CACHE_URL, DATA_CACHE_SECONDS, SLOW_REQUEST_MS | Redis compartido, vida de los catálogos en caché y umbral para registrar peticiones lentas. | redis://redis:6379/1 en Docker, 600 s, 800 ms |
+| Sesión | SESSION_IDLE_TIMEOUT_MINUTES | Minutos de inactividad tras los que se cierra la sesión (RNF01). | 5 |
+| IA generativa | GEMINI_API_KEY, AI_ENABLED, AI_MODEL, AI_TIMEOUT_SECONDS, AI_SUMMARY_ON_ALERT | Clave de Google AI Studio, activación, modelo, tiempo máximo de espera y resumen automático ante una alerta roja. | Sin clave (el sistema usa sus alternativas locales), gemini-4-hydrogen, 20 s |
+| Correo | EMAIL_BACKEND, EMAIL_TIMEOUT, DEFAULT_FROM_EMAIL | Mecanismo de envío, tiempo máximo y remitente. | Consola, 10 s, alertas@dentalsense.example |
+| Frontend | VITE_API_URL, VITE_SESSION_IDLE_MINUTES, VITE_CDN_URL | Dirección de la API, minutos de inactividad en el navegador y CDN opcional para los estáticos. | http://localhost:8000/api, 5, sin CDN |
+
+Nota. Valores tomados de `backend/core/settings.py`, `docker-compose.yml` y `.env.example`. Elaboración propia.
+
+Para ejecutar el sistema se usan los comandos siguientes desde la raíz del proyecto, después de copiar `.env.example` como `.env`:
+
+```bash
+# Construir las imágenes y levantar los cinco servicios
+docker compose up --build
+
+# Cargar los datos de demostración (borra los existentes; solo con DEBUG activo)
+docker compose exec backend python manage.py seed_demo
+
+# Pruebas
+docker compose exec backend python manage.py test --settings=core.settings_test
+docker compose exec frontend npm test
+```
+
+Sin Docker, el mismo sistema se ejecuta con Python 3.12 o 3.13 y PostgreSQL instalados en el equipo: `pip install -r backend/requirements.txt`, `python -m spacy download es_core_news_sm`, `python manage.py migrate` y `python manage.py runserver` en el backend, y `npm install` y `npm run dev` en el frontend. En ese caso, `DB_HOST` debe ser `localhost`.
+
+La ejecución desatendida corresponde al contenedor `scheduler`, que repite sin fin el comando `manage.py send_reminders` y espera 900 segundos entre una corrida y la siguiente. Cada corrida revisa los tratamientos activos de los pacientes que registraron un correo y calcula tres tipos de recordatorio:
+
+- **Control:** desde tres días antes de la fecha, el mismo día y, si el control se pasó, una vez por semana.
+- **Reporte:** cuando vence la frecuencia de autorreporte del protocolo (por defecto, cada día).
+- **Cuidados:** después de las 18:00, si el paciente aún no marcó su checklist del día.
+
+Antes de enviar cada recordatorio, el comando lo registra en la tabla `Reminder` con una clave única, por lo que un mismo aviso nunca se repite aunque el comando corra varias veces (Código 2). El correo al odontólogo ante una alerta roja no depende del programador: lo envía el propio backend en un hilo aparte, después de confirmar la transacción, para no retrasar la respuesta al paciente. Todas las fechas se calculan en la zona horaria `America/Guayaquil`.
+
+Código 2. Envío de los recordatorios pendientes
+
+```python
+# backend/medical_monitor/reminders.py (líneas 74–95)
+def send_pending(now=None):
+    """Envía por correo los recordatorios que aún no se enviaron. Devuelve cuántos se enviaron."""
+    sent = 0
+    plans = TreatmentPlan.objects.filter(is_active=True).exclude(patient__email='').select_related(
+        'patient', 'clinical_procedure',
+    )
+    for plan in plans:
+        for item in pending_for_plan(plan, now):
+            reminder, created = Reminder.objects.get_or_create(
+                kind=item['kind'], key=item['key'], defaults={'user': plan.patient},
+            )
+            if not created:
+                continue
+            send_mail(
+                subject='DentalSense: recordatorio de tu tratamiento',
+                message=f'{item["text"]}\n\nIngresa a tu portal de DentalSense para más detalles.',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[plan.patient.email],
+                fail_silently=True,
+            )
+            sent += 1
+    return sent
+```
+
+Nota. Extracto literal de `backend/medical_monitor/reminders.py` (commit 389fa9d).
 
 ![Figura 10. Arquitectura de despliegue con Docker Compose.](capturas/11-arquitectura.png)
 
-Cada componente corre en su propio contenedor dentro de una red interna de Docker:
+Las capas se conectan como muestra la Figura 10. El navegador descarga la interfaz del contenedor `frontend` (①) y después habla directamente con la API del contenedor `backend` (②). Las vistas de Django llaman a los servicios clínicos, que leen y escriben en PostgreSQL por medio del ORM, consultan la caché en Redis y, solo cuando hace falta y existe una clave, piden a Gemini una respuesta con datos anonimizados. Si Gemini o Redis fallan, el sistema sigue funcionando con sus alternativas locales: el triaje nunca depende de ellos.
 
-- El navegador descarga la SPA del contenedor `frontend` (①) y después habla directamente con la API del contenedor `backend` (②).
-- El `backend` llega a la base de datos y a la caché por el nombre del servicio (`db`, `redis`), que Docker resuelve como nombre de host.
-- El contenedor `scheduler` reutiliza la misma imagen del backend para enviar recordatorios cada 15 minutos.
+El flujo general de uso es el siguiente:
 
-Las conexiones se configuran exclusivamente mediante variables de entorno:
+1. El administrador configura el catálogo de tratamientos, los umbrales de alerta y las cuentas del personal.
+2. El odontólogo registra la consulta. El backend crea en una sola transacción el tratamiento, sus fases y, si corresponde, la receta, y genera credenciales temporales para el paciente nuevo.
+3. El paciente ingresa, acepta el tratamiento de sus datos y cambia su contraseña.
+4. Cada día, el programador le recuerda reportar y marcar sus cuidados. El paciente conversa con el asistente y envía su reporte, que el backend clasifica con spaCy y las reglas clínicas en milisegundos.
+5. Si el reporte es rojo, la alerta aparece en el Monitor Clínico del odontólogo, sale el correo de aviso y, si la IA está activa, se prepara en segundo plano un resumen clínico.
 
-| Conexión | Variable | Valor en Docker |
-|---|---|---|
-| Frontend → Backend | `VITE_API_URL` | `http://localhost:8000/api` |
-| Backend → PostgreSQL | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | `db`, `5432`, `mi_base_datos`, `admin`, (desde `.env`) |
-| Backend → Redis | `CACHE_URL` | `redis://redis:6379/1` |
-| Backend → Gemini | `GEMINI_API_KEY`, `AI_MODEL` | clave de Google AI Studio (opcional) |
-| Backend acepta al Frontend | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` |
+La Figura 5 y la Figura 7 muestran el sistema funcionando con los datos de demostración: el panel del odontólogo con una alerta roja y el asistente del paciente durante un reporte.
 
-Como el frontend (puerto 5173) y la API (puerto 8000) tienen orígenes distintos, el navegador aplicaría la política del mismo origen; `django-cors-headers` autoriza explícitamente al origen del frontend.
+Las limitaciones de la operación local son las siguientes:
 
-### Entorno de ejecución y despliegue
-
-El prototipo funcional se ejecuta **en local** con Docker Compose. Los contenedores encapsulan cada servicio con sus dependencias exactas, lo que hace el entorno reproducible en cualquier equipo (Boettiger, 2015) y facilita trasladarlo después a una plataforma en la nube (Pahl, 2015). El archivo `docker-compose.yml` define cinco servicios:
-
-```yaml
-# docker-compose.yml (fragmento)
-services:
-  db:
-    image: postgres:15-alpine
-    volumes: [postgres_data:/var/lib/postgresql/data]   # los datos sobreviven a reinicios
-    environment: { POSTGRES_DB: mi_base_datos, POSTGRES_USER: admin,
-                   POSTGRES_PASSWORD: "${DB_PASSWORD:-admin_password}" }
-    ports: ["5432:5432"]
-
-  redis:
-    image: redis:7-alpine
-    command: redis-server --save "" --maxmemory 64mb --maxmemory-policy allkeys-lru
-
-  backend:
-    build: { context: ./backend }
-    command: bash -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-    ports: ["8000:8000"]
-    environment:
-      - DB_HOST=db
-      - CACHE_URL=redis://redis:6379/1
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-    depends_on: [db, redis]
-
-  scheduler:
-    build: { context: ./backend }
-    command: bash -c "while true; do python manage.py send_reminders; sleep 900; done"
-    depends_on: [backend]
-
-  frontend:
-    build: { context: ./frontend }
-    command: sh -c "npm install --no-audit --no-fund && npm run dev"
-    ports: ["5173:5173"]
-    environment: [VITE_API_URL=http://localhost:8000/api]
-    depends_on: [backend]
-```
-
-| Servicio | Imagen base | Puerto | Función |
-|---|---|---|---|
-| `db` | `postgres:15-alpine` | 5432 | Base de datos persistente (volumen `postgres_data`) |
-| `redis` | `redis:7-alpine` | 6379 (interno) | Caché de catálogos y contadores de límite de uso |
-| `backend` | `python:3.12-slim` + spaCy `es_core_news_sm` | 8000 | API REST; aplica las migraciones al arrancar |
-| `scheduler` | misma imagen del backend | — | Recordatorios de citas, reportes y cuidados |
-| `frontend` | `node:20-alpine` | 5173 | Servidor de desarrollo de Vite |
-
-El `Dockerfile` del backend instala las dependencias del sistema (`gcc`, `libpq-dev`), luego los paquetes de `requirements.txt` y descarga el modelo de spaCy en español. Copiar `requirements.txt` antes que el resto del código aprovecha la caché de capas de Docker: si solo cambia el código, las dependencias no se reinstalan.
-
-**Pasos para ejecutar el prototipo:**
-
-1. Clonar el repositorio y copiar el archivo de configuración: `cp .env.example .env` (opcionalmente se añade `GEMINI_API_KEY`).
-2. Construir y levantar los servicios: `docker compose up --build`.
-3. Cargar datos de demostración: `docker compose exec backend python manage.py seed_demo` (borra los datos existentes).
-4. Abrir `http://localhost:5173` e ingresar, por ejemplo, con `doctor.demo` / `DoctorDemo2026!` o `paciente.demo` / `PacienteDemo2026!`.
-
-**Producción.** El archivo `frontend/Dockerfile.prod` compila la SPA con Vite en una primera etapa y la sirve con Nginx 1.27 en una segunda, con archivos precomprimidos en gzip y la URL de la API definida en tiempo de compilación (`--build-arg VITE_API_URL=https://api.midominio.com/api`). En ese escenario se configura `DEBUG=False` y `SECRET_KEY` (obligatoria), y se amplía `CORS_ALLOWED_ORIGINS` con el dominio público.
-
-**Verificación.** Las pruebas automatizadas comprueban la integración de cada capa: `python manage.py test --settings=core.settings_test` en el backend (con SQLite en memoria) y `npm test` (Vitest) en el frontend.
-
-### Flujo general de uso del sistema
-
-El ciclo completo de seguimiento de un paciente recorre los tres roles y todas las capas:
-
-1. **Administrador:** configura el catálogo de tratamientos, los umbrales de alerta y las cuentas del personal (Figura 8).
-2. **Odontólogo — consulta:** busca o registra al paciente y registra el tratamiento, las piezas dentales, la receta y la fecha del próximo control (Figuras 3 y 4). El backend crea el plan, sus fases y la receta en una sola transacción. Al paciente nuevo se le generan credenciales temporales.
-3. **Paciente — primer acceso:** inicia sesión (Figura 1), acepta el tratamiento de sus datos, cambia su contraseña y ve sus indicaciones y su medicación en lenguaje sencillo (Figura 6).
-4. **Paciente — seguimiento diario:** conversa con el asistente y envía su reporte (Figura 7). El backend lo clasifica con PLN y reglas (Figura 9), y el `scheduler` le recuerda por correo los reportes y controles pendientes.
-5. **Odontólogo — vigilancia:** en el Monitor Clínico ve primero a los pacientes con alerta roja, revisa la curva de dolor y los motivos de la alerta, genera un resumen con IA y decide si llamar al paciente, adelantar el control o darle el alta (Figura 5).
-
-Este flujo responde a la evidencia de que el monitoreo remoto en casa tras una intervención es viable y bien aceptado por los pacientes (Dawes et al., 2021). En DentalSense AI, la integración de las capas permite que la información que el paciente escribe desde su teléfono llegue clasificada al panel del odontólogo en pocos segundos.
+- **Origen único.** La interfaz debe abrirse como http://localhost:5173. Si se abre como http://127.0.0.1:5173, o desde otro dispositivo de la red, el navegador bloquea las respuestas de la API porque ese origen no está en `CORS_ALLOWED_ORIGINS`. Se comprobó enviando la consulta previa de CORS con ambos orígenes: solo `localhost` recibió la cabecera `Access-Control-Allow-Origin`. Para usar el sistema desde un teléfono hay que ajustar `CORS_ALLOWED_ORIGINS` y `VITE_API_URL`.
+- **Correo en consola.** Con el valor por defecto de `EMAIL_BACKEND`, los recordatorios y las alertas se escriben en el registro de los contenedores en lugar de enviarse. Para un envío real hay que elegir el backend SMTP de Django, y además `settings.py` todavía no lee de variables de entorno el servidor, el puerto ni las credenciales SMTP.
+- **Programador sin recuperación.** Si el contenedor `scheduler` está detenido, no se envían recordatorios. Al reiniciarse solo envía los que siguen vigentes, de modo que los avisos de los días en que estuvo detenido se pierden.
+- **Servidores de desarrollo.** El backend y el frontend corren con sus servidores de desarrollo (`runserver` y Vite). Para producción, el frontend ya tiene su imagen con Nginx (`frontend/Dockerfile.prod`), pero el backend aún necesita un servidor WSGI como Gunicorn.
+- **Puerto de la base de datos publicado.** El puerto 5432 se expone en el equipo para facilitar la inspección durante el desarrollo; fuera de él debe cerrarse.
 
 ## Pruebas funcionales y resultados
 
